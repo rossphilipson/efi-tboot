@@ -31,3 +31,8 @@
 # Debug files
 *.dSYM/
 *.su
+
+# TBOOT EFI files
+*.efi
+*.dsm
+*.lds
