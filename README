@@ -1,0 +1,167 @@
+==============================================================================
+                      __ _        _   _                 _   
+                     / _(_)      | | | |               | |  
+                 ___| |_ _ ______| |_| |__   ___   ___ | |_ 
+                / _ \  _| |______| __| '_ \ / _ \ / _ \| __|
+               |  __/ | | |      | |_| |_) | (_) | (_) | |_ 
+                \___|_| |_|       \__|_.__/ \___/ \___/ \__|
+
+==============================================================================
+
+                          --- EFI TBOOT ---
+
+       /!\ The EFI TBOOT project is currently under development /!\
+
+EFI TBOOT is mostly a proof of concept at this point. It is not currently
+functional. It can be built and installed as an EFI boot loader. It only works
+in conjunction with Xen at the moment. The current development work is being
+done on Fedora 25 x64.
+
+The status as of March 14, 2017 is:
+ - EFI TBOOT will boot, but it needs a few key strokes to get getting
+   going (this is for debugging purposes).
+ - EFI TBOOT will relocate itself to EFI runtime memory and setup a shared
+   runtime variable with Xen.
+ - EFI related configuration setup is done as well as standard TBOOT pre-
+   launch configuration.
+ - Xen is launched and has code to call EFI TBOOT back after EBS.
+ - EFI TBOOT then does the SENTER successfully in the callback.
+ - The post launch entry point is reached but the switch back to long mode
+   is not working.
+
+                         --- Get EFI TBOOT ---
+
+The efi-tboot repository can be found here (though if you are reading this you
+probably already know that):
+
+https://github.com/rossphilipson/efi-tboot
+
+$ git clone https://github.com/rossphilipson/efi-tboot.git
+
+Contents:
+
+README - this file
+tboot  - all the sources and supporting files for EFI TBOOT
+xen    - patches and support files for Xen 
+
+                          --- Install Xen ---
+
+Xen will be patched, built and installed from sources. Get the Xen 4.7.1
+tarball:
+
+https://www.xenproject.org/downloads/xen-archives/xen-project-47-series/xen-471.html
+
+Install some needed packages to build and configure everything:
+
+$ sudo dnf builddep xen
+$ sudo dnf builddep kernel
+$ sudo dnf install mingw64-binutils.x86_64
+$ sudo dnf install mingw64-gcc.x86_64
+$ sudo dnf install mtools.x86_64
+$ sudo dnf install efibootmgr
+
+Get the latest gnu-efi package, make and install it (see README.gnuefi in the
+project). Note Fedora had a gnu-efi RPM but these was some issue with it.
+Using the latest and building it is working fine.
+
+https://sourceforge.net/projects/gnu-efi/
+
+Xen needs to be patched with the patches found under efi-tboot/xen. Use quilt:
+
+$ cd xen-4.7.1
+$ mkdir patches
+$ cp ../efi-tboot/xen/*.patch patch
+$ cp ../efi-tboot/xen/series patch
+$ quilt push -a
+
+Build and install the Xen tools:
+
+$ ./configure --prefix=/usr --libdir=/usr/lib64 --enable-systemd
+$ make dist-tools
+$ sudo make install-tools
+
+Note had to comment a bunch of modules here: /lib/modules-load.d/xen.conf
+
+#evtchn
+#gntdev
+#netbk
+#blkbk
+#xen-scsibk
+#usbbk
+#pciback
+#blktap2
+
+At this point, building Xen is more or less following the instructions here:
+
+https://wiki.xenproject.org/index.php?title=Xen_EFI&oldid=14685
+
+Note this is an early version of the instructions which is being used. The
+xen.fedora.efi.build.patch patch mentioned here is already in the efi-tboot
+patch set for Xen and applied above. We will sort out build issues like using
+the new instructions later. To build and install:
+
+$ LD_EFI=/usr/x86_64-w64-mingw32/bin/ld make xen
+$ sudo mkdir /boot/efi/EFI/Xen
+$ sudo cp /boot/vmlinuz* /boot/efi/EFI/Xen
+$ sudo cp /boot/initr* /boot/efi/EFI/Xen
+$ sudo cp xen/xen.efi /boot/efi/EFI/Xen
+$ cp ../efi-tboot/xen/xen.cfg /boot/efi/EFI/Xen
+
+Make sure the kernel and initrd lines in the xen.cfg match the ones on your
+platform. Next, create new EFI boot target:
+
+$ efibootmgr -w -L Xen -l "\EFI\Xen\xen.efi" -c
+
+The efibootmgr tool can me used to manage and re-order the EFI boot
+targets. See the man page and help for more details.
+
+Enable the needed Xen services:
+
+$ systemctl enable xenstored.socket
+$ systemctl enable xenconsoled
+$ systemctl enable xen-init-dom0
+$ systemctl start xenstored.socket
+$ systemctl start xenconsoled
+$ systemctl start xen-init-dom0
+
+Reboot and choose Xen from the EFI boot manager.
+
+                       --- Install EFI TBOOT ---
+
+Build and install EFI TBOOT and needed support files:
+
+$ cd efi-tboot/tboot
+$ make
+$ sudo mkdir /boot/efi/EFI/TBOOT
+$ sudo cp tboot.efi /boot/efi/EFI/TBOOT
+$ cp tboot.cfg /boot/efi/EFI/TBOOT
+
+Create new EFI boot target:
+
+$ efibootmgr -w -L TBOOT -l "\EFI\TBOOT\tboot.efi" -c
+
+EFI TBOOT needs a number of platform support files used with TXT (called
+Authenticated Code Modules or ACMs). For convenience the packages can be
+gotten from the OpenXT mirror:
+
+http://mirror.openxt.org/
+
+Download:
+
+5-i7-sinit-67.zip
+4th-gen-i5-i7-sinit-75.zip
+5th-gen-i5-i7-sinit_79.zip
+5th_gen_i5_i7-SINIT_79.zip
+6th_gen_i5_i7-SINIT_71.zip
+7th_gen_i5_i7-SINIT_74.zip
+GM45_GS45_PM45-SINIT_51.zip
+Q35-SINIT_51.zip
+Q45_Q43-SINIT_51.zip
+Xeon-5600-3500-SINIT-v1.1.zip
+Xeon-E7-8800-4800-2800-SINIT-v1.1.zip
+i5_i7_DUAL-SINIT_51.zip
+i7_QUAD-SINIT_51.zip
+
+Each package must be unzipped and the .bin or .BIN file in the package needs
+to be copied to /boot/efi/EFI/TBOOT
+

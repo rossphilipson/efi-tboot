@@ -1,0 +1,455 @@
+/*
+ * misc.c:  miscellaneous support fns
+ *
+ * Copyright (c) 2010, Intel Corporation
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ *   * Redistributions of source code must retain the above copyright
+ *     notice, this list of conditions and the following disclaimer.
+ *   * Redistributions in binary form must reproduce the above
+ *     copyright notice, this list of conditions and the following
+ *     disclaimer in the documentation and/or other materials provided
+ *     with the distribution.
+ *   * Neither the name of the Intel Corporation nor the names of its
+ *     contributors may be used to endorse or promote products derived
+ *     from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ */
+
+#include <config.h>
+#include <efibase.h>
+#include <types.h>
+#include <stdbool.h>
+#include <printk.h>
+#include <compiler.h>
+#include <processor.h>
+#include <atomic.h>
+#include <io.h>
+#include <msr.h>
+#include <page.h>
+#include <ctype.h>
+#include <misc.h>
+#include <tb_error.h>
+#include <txt/txt.h>
+
+/*
+ * if 'prefix' != NULL, print it before each line of hex string
+ */
+void print_hex(const char *prefix, const void *prtptr, size_t size)
+{
+    for ( size_t i = 0; i < size; i++ ) {
+        if ( i % 16 == 0 && prefix != NULL )
+            printk(TBOOT_DETA"\n%s", prefix);
+        printk(TBOOT_DETA"%02x ", *(uint8_t *)prtptr++);
+    }
+    printk(TBOOT_DETA"\n");
+}
+
+void print_system_values(void)
+{
+    lmode_desc_t gdt;
+    lmode_desc_t idt;
+
+    store_gdt(&gdt);
+    store_idt(&idt);
+
+    /* Note the limit is 1 less than the actual length */
+    printk(TBOOT_DETA"GDT %016llx:%04x\n", gdt.base, gdt.limit);
+    /*print_hex("GDT: ", (void*)gdt.base, gdt.limit + 1);*/
+    printk(TBOOT_DETA"IDT %016llx:%04x\n", idt.base, idt.limit);
+    /*print_hex("IDT: ", (void*)idt.base, idt.limit + 1);*/
+    printk(TBOOT_DETA"CR0: %08llx\n", read_cr0());
+    printk(TBOOT_DETA"CR3: %08llx\n", read_cr3());
+    printk(TBOOT_DETA"CR4: %08llx\n", read_cr4());
+    printk(TBOOT_DETA"IA32_EFER MSR: %016llx\n", rdmsr(MSR_EFER));
+}
+
+static bool g_calibrated = false;
+static uint64_t g_ticks_per_millisec;
+
+#define TIMER_FREQ	1193182
+#define TIMER_DIV(hz)	((TIMER_FREQ+(hz)/2)/(hz))
+
+static void wait_tsc_uip(void)
+{
+    do {
+        outb(0x43, 0xe8);
+        cpu_relax();
+    } while ( !(inb(0x42) & 0x80) );
+    do {
+        outb(0x43, 0xe8);
+        cpu_relax();
+    } while ( inb(0x42) & 0x80 );
+}
+
+static void calibrate_tsc(void)
+{
+    if ( g_calibrated )
+        return;
+
+    /* disable speeker */
+    uint8_t val = inb(0x61);
+    val = ((val & ~0x2) | 0x1);
+    outb(0x61, val);
+
+    /* 0xb6 - counter2, low then high byte write */
+    /* mode 3, binary */
+    outb(0x43, 0xb6);
+
+    /* 0x4a9 - divisor to get 1ms period time */
+    /* 1.19318 MHz / 1193 = 1000.15Hz */
+    uint16_t latch = TIMER_DIV(1000);
+    outb(0x42, latch & 0xff);
+    outb(0x42, latch >> 8);
+
+    /* 0xe8 - read back command, don't get count */
+    /* get status, counter2 select */
+    do {
+        outb(0x43, 0xe8);
+        cpu_relax();
+    } while ( inb(0x42) & 0x40 );
+
+    wait_tsc_uip();
+
+    /* get starting TSC val */
+    uint64_t start = rdtsc();
+
+    wait_tsc_uip();
+
+    uint64_t end = rdtsc();
+
+    /* # ticks in 1 millisecond */
+    g_ticks_per_millisec = end - start;
+
+    /* restore timer 1 programming */
+    outb(0x43, 0x54);
+    outb(0x41, 0x12);
+
+    g_calibrated = true;
+}
+
+void delay(int millisecs)
+{
+    if ( millisecs <= 0 )
+        return;
+
+    calibrate_tsc();
+
+    uint64_t rtc = rdtsc();
+
+    uint64_t end_ticks = rtc + millisecs * g_ticks_per_millisec;
+    while ( rtc < end_ticks ) {
+        cpu_relax();
+        rtc = rdtsc();
+    }
+}
+
+#define PAGE_IDX_MASK  ((1ULL << 9)  - 1) /* 0x1FF  9 bits */
+#define PHYS_ADDR_MASK ((1ULL << 52) - 0x1000) /* 0xFFFFFFFFFF000  52 bits, 4K masked */
+#define PHYS_ADDR_2M_MASK ((1ULL << 52) - 0x200000) /* 0xFFFFFFFE00000  52 bits, 2M masked */
+#define PHYS_ADDR_1G_MASK ((1ULL << 52) - 0x40000000) /* 0xFFFFFC0000000  52 bits, 1G masked */
+#define PAGE_4K_MASK 0xFFF
+#define PAGE_2M_MASK 0x1FFFFF
+#define PAGE_1G_MASK 0x3FFFFFFF
+#define ps_bit_set(e) ((e >> 7) & 1)
+#define p_bit_set(e) (e & 1)
+#define ENTRIES_PER_TABLE 512
+
+bool test_virt_to_phys(uint64_t vaddr)
+{
+    uint64_t pml4i = (vaddr >> 39) & PAGE_IDX_MASK;
+    uint64_t pdpi = (vaddr >> 30) & PAGE_IDX_MASK;
+    uint64_t pdi = (vaddr >> 21) & PAGE_IDX_MASK;
+    uint64_t pti = (vaddr >> 12) & PAGE_IDX_MASK;
+    uint64_t *pml4p, pml4e;
+    uint64_t *pdpp, pdpe;
+    uint64_t *pdp, pde;
+    uint64_t *ptp, pte;
+    uint64_t paddr;
+
+    pml4p = (uint64_t*)(read_cr3() & PAGE_MASK);
+    pml4e = pml4p[pml4i];
+    printk("V2P pml4p: %p pml4i: %016llx pml4e: %016llx\n",
+           pml4p, pml4i, pml4e);
+    if (!p_bit_set(pml4e)) {
+        printk("V2P Error pml4 entry not present!\n");
+        goto err;
+    }
+
+    pdpp = (uint64_t*)(pml4e & PHYS_ADDR_MASK);
+    pdpe = pdpp[pdpi];
+    printk("V2P pdpp: %p pdpi: %016llx pdpe: %016llx\n",
+           pdpp, pdpi, pdpe);
+    if (!p_bit_set(pdpe)) {
+        printk("V2P Error pdp entry not present!\n");
+        goto err;
+    }
+    if (ps_bit_set(pdpe)) {
+        printk("V2P 1G page\n");
+        paddr = (pdpe & PHYS_ADDR_1G_MASK) + (vaddr & PAGE_1G_MASK);
+        goto out;
+    }
+
+    pdp = (uint64_t*)(pdpe & PHYS_ADDR_MASK);
+    pde = pdp[pdi];
+    printk("V2P pdp: %p pdi: %016llx pde: %016llx\n",
+           pdp, pdi, pde);
+    if (!p_bit_set(pde)) {
+        printk("V2P Error pd entry not present!\n");
+        goto err;
+    }
+    if (ps_bit_set(pde)) {
+        printk("V2P 2M page\n");
+        paddr = (pde & PHYS_ADDR_2M_MASK) + (vaddr & PAGE_2M_MASK);
+        goto out;
+    }
+
+    ptp = (uint64_t*)(pde & PHYS_ADDR_MASK);
+    pte = ptp[pti];
+    printk("V2P ptp: %p pti: %016llx pte: %016llx\n",
+           ptp, pti, pte);
+    if (!p_bit_set(pte)) {
+        printk("V2P Error pt entry not present!\n");
+        goto err;
+    }
+
+    printk("V2P 4K page\n");
+    paddr = (pte & PHYS_ADDR_MASK) + (vaddr & PAGE_4K_MASK);
+
+out:
+    printk("V2P vaddr: %016llx paddr: %016llx\n",
+           vaddr, paddr);
+
+   if (vaddr != paddr)
+       return false;
+
+    return true;
+
+err:
+    return false;
+}
+
+void dump_page_tables(void)
+{
+    uint32_t l4i, l3i, l2i, l1i;
+    uint64_t *pml4p, *pdpp, *pdp, *ptp;
+
+    pml4p = (uint64_t*)(read_cr3() & PAGE_MASK);
+    printk("PAGE TABLE DUMP@ 0x%016llx\n", (uint64_t)pml4p);
+
+    for (l4i = 0; l4i < ENTRIES_PER_TABLE; l4i++) {
+        if (!p_bit_set(pml4p[l4i])) {
+            printk(" PML4 entry(%d) not present\n", l4i);
+            continue;
+        }
+
+        printk(" PML4 entry(%d) table: 0x%016llx\n", l4i, pml4p[l4i]);
+        pdpp = (uint64_t*)(pml4p[l4i] & PHYS_ADDR_MASK);
+        for (l3i = 0; l3i < ENTRIES_PER_TABLE; l3i++) {
+            if (!p_bit_set(pdpp[l3i])) {
+                printk("  PDP entry(%d) not present\n", l3i);
+                continue;
+            }
+            if (ps_bit_set(pdpp[l3i])) {
+                printk("  PDP entry(%d) 1G page: 0x%016llx\n", l3i, pdpp[l3i]);
+                continue;
+            }
+
+            printk("  PDP entry(%d) table: 0x%016llx\n", l3i, pdpp[l3i]);
+            pdp = (uint64_t*)(pdpp[l3i] & PHYS_ADDR_MASK);
+            for (l2i = 0; l2i < ENTRIES_PER_TABLE; l2i++) {
+                if (!p_bit_set(pdp[l2i])) {
+                    printk("   PD entry(%d) not present\n", l2i);
+                    continue;
+                }
+                if (ps_bit_set(pdp[l2i])) {
+                    printk("   PD entry(%d) 2M page: 0x%016llx\n", l2i, pdp[l2i]);
+                    continue;
+                }
+
+                printk("   PD entry(%d) table: 0x%016llx\n", l2i, pdp[l2i]);
+                ptp = (uint64_t*)(pdp[l2i] & PHYS_ADDR_MASK);
+                for (l1i = 0; l1i < ENTRIES_PER_TABLE; l1i++) {
+                    if (!p_bit_set(ptp[l1i])) {
+                        printk("    PT entry(%d) not present\n", l1i);
+                        continue;
+                    }
+                    printk("    PT entry(%d) 4K page: 0x%016llx\n", l1i, ptp[l1i]);
+                }
+            }
+        }
+    }
+}
+
+/* used by isXXX() in ctype.h */
+/* originally from:
+ * http://fxr.watson.org/fxr/source/dist/acpica/utclib.c?v=NETBSD5
+ * re-licensed by Intel Corporation
+ */
+
+const uint8_t _ctype[CTYPE_SIZE] = {
+    _CN,            /* 0x0      0.     */
+    _CN,            /* 0x1      1.     */
+    _CN,            /* 0x2      2.     */
+    _CN,            /* 0x3      3.     */
+    _CN,            /* 0x4      4.     */
+    _CN,            /* 0x5      5.     */
+    _CN,            /* 0x6      6.     */
+    _CN,            /* 0x7      7.     */
+    _CN,            /* 0x8      8.     */
+    _CN|_SP,        /* 0x9      9.     */
+    _CN|_SP,        /* 0xA     10.     */
+    _CN|_SP,        /* 0xB     11.     */
+    _CN|_SP,        /* 0xC     12.     */
+    _CN|_SP,        /* 0xD     13.     */
+    _CN,            /* 0xE     14.     */
+    _CN,            /* 0xF     15.     */
+    _CN,            /* 0x10    16.     */
+    _CN,            /* 0x11    17.     */
+    _CN,            /* 0x12    18.     */
+    _CN,            /* 0x13    19.     */
+    _CN,            /* 0x14    20.     */
+    _CN,            /* 0x15    21.     */
+    _CN,            /* 0x16    22.     */
+    _CN,            /* 0x17    23.     */
+    _CN,            /* 0x18    24.     */
+    _CN,            /* 0x19    25.     */
+    _CN,            /* 0x1A    26.     */
+    _CN,            /* 0x1B    27.     */
+    _CN,            /* 0x1C    28.     */
+    _CN,            /* 0x1D    29.     */
+    _CN,            /* 0x1E    30.     */
+    _CN,            /* 0x1F    31.     */
+    _XS|_SP,        /* 0x20    32. ' ' */
+    _PU,            /* 0x21    33. '!' */
+    _PU,            /* 0x22    34. '"' */
+    _PU,            /* 0x23    35. '#' */
+    _PU,            /* 0x24    36. '$' */
+    _PU,            /* 0x25    37. '%' */
+    _PU,            /* 0x26    38. '&' */
+    _PU,            /* 0x27    39. ''' */
+    _PU,            /* 0x28    40. '(' */
+    _PU,            /* 0x29    41. ')' */
+    _PU,            /* 0x2A    42. '*' */
+    _PU,            /* 0x2B    43. '+' */
+    _PU,            /* 0x2C    44. ',' */
+    _PU,            /* 0x2D    45. '-' */
+    _PU,            /* 0x2E    46. '.' */
+    _PU,            /* 0x2F    47. '/' */
+    _XD|_DI,        /* 0x30    48. '' */
+    _XD|_DI,        /* 0x31    49. '1' */
+    _XD|_DI,        /* 0x32    50. '2' */
+    _XD|_DI,        /* 0x33    51. '3' */
+    _XD|_DI,        /* 0x34    52. '4' */
+    _XD|_DI,        /* 0x35    53. '5' */
+    _XD|_DI,        /* 0x36    54. '6' */
+    _XD|_DI,        /* 0x37    55. '7' */
+    _XD|_DI,        /* 0x38    56. '8' */
+    _XD|_DI,        /* 0x39    57. '9' */
+    _PU,            /* 0x3A    58. ':' */
+    _PU,            /* 0x3B    59. ';' */
+    _PU,            /* 0x3C    60. '<' */
+    _PU,            /* 0x3D    61. '=' */
+    _PU,            /* 0x3E    62. '>' */
+    _PU,            /* 0x3F    63. '?' */
+    _PU,            /* 0x40    64. '@' */
+    _XD|_UP,        /* 0x41    65. 'A' */
+    _XD|_UP,        /* 0x42    66. 'B' */
+    _XD|_UP,        /* 0x43    67. 'C' */
+    _XD|_UP,        /* 0x44    68. 'D' */
+    _XD|_UP,        /* 0x45    69. 'E' */
+    _XD|_UP,        /* 0x46    70. 'F' */
+    _UP,            /* 0x47    71. 'G' */
+    _UP,            /* 0x48    72. 'H' */
+    _UP,            /* 0x49    73. 'I' */
+    _UP,            /* 0x4A    74. 'J' */
+    _UP,            /* 0x4B    75. 'K' */
+    _UP,            /* 0x4C    76. 'L' */
+    _UP,            /* 0x4D    77. 'M' */
+    _UP,            /* 0x4E    78. 'N' */
+    _UP,            /* 0x4F    79. 'O' */
+    _UP,            /* 0x50    80. 'P' */
+    _UP,            /* 0x51    81. 'Q' */
+    _UP,            /* 0x52    82. 'R' */
+    _UP,            /* 0x53    83. 'S' */
+    _UP,            /* 0x54    84. 'T' */
+    _UP,            /* 0x55    85. 'U' */
+    _UP,            /* 0x56    86. 'V' */
+    _UP,            /* 0x57    87. 'W' */
+    _UP,            /* 0x58    88. 'X' */
+    _UP,            /* 0x59    89. 'Y' */
+    _UP,            /* 0x5A    90. 'Z' */
+    _PU,            /* 0x5B    91. '[' */
+    _PU,            /* 0x5C    92. '\' */
+    _PU,            /* 0x5D    93. ']' */
+    _PU,            /* 0x5E    94. '^' */
+    _PU,            /* 0x5F    95. '_' */
+    _PU,            /* 0x60    96. '`' */
+    _XD|_LO,        /* 0x61    97. 'a' */
+    _XD|_LO,        /* 0x62    98. 'b' */
+    _XD|_LO,        /* 0x63    99. 'c' */
+    _XD|_LO,        /* 0x64   100. 'd' */
+    _XD|_LO,        /* 0x65   101. 'e' */
+    _XD|_LO,        /* 0x66   102. 'f' */
+    _LO,            /* 0x67   103. 'g' */
+    _LO,            /* 0x68   104. 'h' */
+    _LO,            /* 0x69   105. 'i' */
+    _LO,            /* 0x6A   106. 'j' */
+    _LO,            /* 0x6B   107. 'k' */
+    _LO,            /* 0x6C   108. 'l' */
+    _LO,            /* 0x6D   109. 'm' */
+    _LO,            /* 0x6E   110. 'n' */
+    _LO,            /* 0x6F   111. 'o' */
+    _LO,            /* 0x70   112. 'p' */
+    _LO,            /* 0x71   113. 'q' */
+    _LO,            /* 0x72   114. 'r' */
+    _LO,            /* 0x73   115. 's' */
+    _LO,            /* 0x74   116. 't' */
+    _LO,            /* 0x75   117. 'u' */
+    _LO,            /* 0x76   118. 'v' */
+    _LO,            /* 0x77   119. 'w' */
+    _LO,            /* 0x78   120. 'x' */
+    _LO,            /* 0x79   121. 'y' */
+    _LO,            /* 0x7A   122. 'z' */
+    _PU,            /* 0x7B   123. '{' */
+    _PU,            /* 0x7C   124. '|' */
+    _PU,            /* 0x7D   125. '}' */
+    _PU,            /* 0x7E   126. '~' */
+    _CN,            /* 0x7F   127.     */
+
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  /* 0x80 to 0x8F    */
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  /* 0x90 to 0x9F    */
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  /* 0xA0 to 0xAF    */
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  /* 0xB0 to 0xBF    */
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  /* 0xC0 to 0xCF    */
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  /* 0xD0 to 0xDF    */
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  /* 0xE0 to 0xEF    */
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 /* 0xF0 to 0x100   */
+};
+
+/*
+ * Local variables:
+ * mode: C
+ * c-set-style: "BSD"
+ * c-basic-offset: 4
+ * tab-width: 4
+ * indent-tabs-mode: nil
+ * End:
+ */

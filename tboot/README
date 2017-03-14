@@ -1,0 +1,213 @@
+###############################################################################
+Diffs
+
+include/types.h
+  ifdef NULL
+  Added wchar_t
+  Added TODO about x64
+  Changed uintptr_t and size_t to 64b
+
+include/acpi.h
+  Removed extern
+
+include/com.h
+  Removed extern
+
+include/vmac.h
+  Removed extern "C" and C++ stuff
+
+include/hash.h
+  Removed extern
+
+include/integrity.h
+  Removed extern
+
+include/printk.h
+  Removed extern
+
+include/misc.h
+  Removed extern
+
+include/tb_error.h
+  Removed extern
+
+include/tpm.h
+  Removed extern
+  Set tboot_alg_list size to 2
+
+include/tpm_20.h
+  Removed TRUE/FALSE
+
+include/tboot.h
+  Removed extern
+  TODO about tboot/xen shared struct
+
+include/sha1.h
+  Removed extern
+
+include/page.h
+  Use unsigned long long for PAGE UP/DOWN casts.
+
+include/ctype.h
+  Removed extern and use CTYPE_SIZE
+
+include/config.h
+  TODO about setting _start, _end
+  TODO about removing hard coded image locations.
+  Removed a bunch of old layout defines
+  All new layout map at top
+  Changed to .data# and .text# (see https://gcc.gnu.org/ml/gcc-help/2010-09/msg00088.html)
+  Removed __mlept section.
+
+include/cmdline.h
+  Stub out min_ram stuff for now
+  Removed extern
+
+include/msr.h
+  Move rd/wrmsr to assembly module
+
+include/tboot.h
+  Removed zip shit and made log buffer 0x8000, added is_init
+  Change name to begin_initial_launch
+
+include/mutex.h
+  Use 64b mutex obj
+
+include/processor.h
+  Fix 32b things - left orig commented out or comments
+  cpuid bits are fine in 64b
+
+include/txt/config_regs.h
+  TODO about warning, changed to ull
+
+include/txt/vmcs.h
+  Added ap_lock
+
+include/txt/heap.h
+  TODO about warning, changed to ull
+  Removed extern, lctx_addr
+
+include/txt/txt.h
+  TODO about loader_ctx
+  Removed extern
+  Added ap_wfs_count
+
+include/txt/acmod.h
+  Removed extern <function>
+
+include/txt/verify.h
+  Removed extern
+
+include/txt/smx.h
+  Removed extern
+
+include/txt/vmcs.h
+  Removed extern
+
+include/txt/mtrrs.h
+  Removed extern
+
+acpi.c
+  Increased to uint64_t for readl/writel etc.
+  Used unsigned long long when assigning wakeup_vector
+  Did return (struct acpi_rsdt *)(uint64_t)rsdp->rsdp1.rsdt;
+  Use EFI to get RSDP
+  Added cast to uint64_t* of ACPI struct
+
+printk.c
+  Replaced memlog with 1.7.4 one and inlined the buffer in the struct
+
+misc.c
+  Use CTYPE_SIZE for _ctype array size
+
+mtrr.c
+  Use read/write rflags
+  Fix 3 casts w/ unsigned long long
+
+vsnprintf.c
+  Cast arg in call to div64
+
+com.c
+  Removed extern
+
+policy.c
+  Fix lcp pointer in unwrap_lcp_policy unsigned long long
+  Switch to efi_launch_kernel (pre EBS only)
+  Fix externs, move to headers
+  Stub out verify modules function
+  Stub out bits of verify_module function and fix args
+  Call new LCP getter
+
+verify.c
+  Fix inline asm at top getting RFLAGS
+  Stubb out a bunch of e820 related functions w/ TODOs
+
+vmac.c
+  Removed redef of ALIGN and UINT64_C
+
+paging.c
+  Fix for 64b use unsigned long long
+
+mutex.S
+  Had to rewrite as 64b code
+  Merged into basics.S and gone
+
+tpm.c
+  Stubbed some crap so it builds, see TODOs
+  Set tboot_alg_list size to 2
+
+tpm_12.c
+  Stubbed some crap so it builds, see TODOs
+
+tpm_20.c
+  Removed loader.h and loader ctx extern (not needed)
+  Had to use -mno-stack-arg-probe to fix stack problems
+  Stubbed some crap so it builds, see TODOs
+
+hash.c
+  Modified stack buffer to not be stupid
+
+acmod.c
+  Modified a number of pointer casts to ull
+  See existing TODO about racm
+  Move global g_sinit here from txt.c
+
+heap.c
+  Removed include multiboot.h, lctx_addr check
+  Modified a number of pointer casts to ull
+  Fixed calls to verify_ext_data_elts with extra sizeof(size)
+
+error.c
+  Removed include loader.h
+  Added atomic.h inclue
+
+cmdline.c
+  Stub out min_ram stuff for now
+
+vga.c
+  Change from int to long long for writew/readw
+
+###############################################################################
+Special
+
+The following were put together bit by bit so changes are not tracked here:
+
+tboot.c
+txt.c
+
+Several small string modules were merged into string.c:
+strlen.c
+strcmp.c
+strncmp.c
+strncpy.c
+strtoul.c
+index.c
+memcmp.c
+
+###############################################################################
+--- Issues ---
+
+ - Had to initialize the cmdline to defaults otherwise the calls before loading
+the cmdline were returning garbage.
+
+ - Trying to init mwait was causing hangs on writemsr.
