@@ -59,7 +59,7 @@
 #define BSP_STACK_SIZE         0x4000
 #define AP_STACK_SIZE          0x0800
 
-.section ".text"
+.section .text
 	.align PAGE_SIZE, 0
 
 .code32
@@ -432,17 +432,17 @@ _mle_size:
 _bss_size:
 	.quad	0x0000000000000000 /* .bss size */
 
-.section ".data"
+.section .data
 	.align PAGE_SIZE, 0
 
-.section ".rdata"
+.section .rdata
 	.align PAGE_SIZE, 0
 
 /*
  * shared data page with kernel (i.e. Xen)
  * (put at end so that not split e820 region for tboot)
  */
-.section ".tbootsh","w"
+.section .tbootsh,"w"
 	.align PAGE_SIZE, 0
 
 	.globl _tboot_shared
@@ -450,7 +450,7 @@ _tboot_shared:
 	.fill PAGE_SIZE,1,0
 	.align PAGE_SIZE, 0
 
-.section ".bss"
+.section .bss
 	.align PAGE_SIZE, 0
 
 .global _bss_start

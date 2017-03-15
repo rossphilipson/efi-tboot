@@ -174,11 +174,12 @@ static inline size_t calc_policy_entry_size(const tb_policy_entry_t *pol_entry,
 static inline size_t calc_policy_size(const tb_policy_t *policy)
 {
     size_t size = sizeof(*policy);
+    int i;
 
     /* tb_policy_t has empty array, which isn't counted in size */
     /* so add size of each policy */
     const tb_policy_entry_t *pol_entry = policy->entries;
-    for ( int i = 0; i < policy->num_entries; i++ ) {
+    for ( i = 0; i < policy->num_entries; i++ ) {
         size_t entry_size = calc_policy_entry_size(pol_entry,
                                                    policy->hash_alg);
         pol_entry = (void *)pol_entry + entry_size;
@@ -210,6 +211,8 @@ static inline tb_hash_t *get_policy_entry_hash(
 static inline tb_policy_entry_t* get_policy_entry(const tb_policy_t *policy,
                                                   int i)
 {
+    int j;
+
     /* assumes policy has already been validated */
 
     if ( policy == NULL ) {
@@ -223,7 +226,7 @@ static inline tb_policy_entry_t* get_policy_entry(const tb_policy_t *policy,
     }
 
     tb_policy_entry_t *pol_entry = (tb_policy_entry_t *)policy->entries;
-    for ( int j = 0; j < i; j++ ) {
+    for ( j = 0; j < i; j++ ) {
         pol_entry = (void *)pol_entry +
             calc_policy_entry_size(pol_entry, policy->hash_alg);
     }
@@ -234,6 +237,8 @@ static inline tb_policy_entry_t* get_policy_entry(const tb_policy_t *policy,
 static inline tb_policy_entry_t* find_policy_entry(const tb_policy_t *policy,
                                                    uint8_t mod_num)
 {
+    int i;
+
     /* assumes policy has already been validated */
 
     if ( policy == NULL ) {
@@ -241,7 +246,7 @@ static inline tb_policy_entry_t* find_policy_entry(const tb_policy_t *policy,
         return NULL;
     }
 
-    for ( int i = 0; i < policy->num_entries; i++ ) {
+    for ( i = 0; i < policy->num_entries; i++ ) {
         tb_policy_entry_t *pol_entry = get_policy_entry(policy, i);
         if ( pol_entry == NULL )
             return NULL;
@@ -256,9 +261,14 @@ static inline tb_policy_entry_t* find_policy_entry(const tb_policy_t *policy,
 
 /*
  * verify and display policy
+ *
+ * TODO why is this horrid thing inlined in a header (comment applies to
+ * other functions in this header too).
  */
 static inline bool verify_policy(const tb_policy_t *policy, size_t size, bool print)
 {
+    int i, j;
+
     if ( print ) PRINT(TBOOT_DETA"policy:\n");
 
     if ( policy == NULL ) {
@@ -293,7 +303,7 @@ static inline bool verify_policy(const tb_policy_t *policy, size_t size, bool pr
     if ( print ) PRINT(TBOOT_DETA"\t num_entries: %u\n", policy->num_entries);
 
     const tb_policy_entry_t *pol_entry = policy->entries;
-    for ( int i = 0; i < policy->num_entries; i++ ) {
+    for ( i = 0; i < policy->num_entries; i++ ) {
         /* check header of policy entry */
         if ( ((void *)pol_entry - (void *)policy + sizeof(*pol_entry)) >
              size ) {
@@ -358,7 +368,7 @@ static inline bool verify_policy(const tb_policy_t *policy, size_t size, bool pr
             return false;
         }
 
-        for ( int j = 0; j < pol_entry->num_hashes; j++ ) {
+        for ( j = 0; j < pol_entry->num_hashes; j++ ) {
             if ( print ) {
                 PRINT(TBOOT_DETA"\t\t hashes[%d]: ", j);
                 print_hash(get_policy_entry_hash(pol_entry,

@@ -255,6 +255,7 @@ static bool unwrap_lcp_policy(void)
     void* lcp_base;
     uint32_t lcp_size;
     const efi_file_t *lcp;
+    int i;
 
     // scaffolding
     printk(TBOOT_INFO"in unwrap_lcp_policy\n");
@@ -280,7 +281,7 @@ static bool unwrap_lcp_policy(void)
         lcp_policy_data_t *poldata = (lcp_policy_data_t *)lcp_base;
         lcp_policy_list_t *pollist = &poldata->policy_lists[0];
 
-        for ( int i = 0; i < poldata->num_lists; i++ ) {
+        for ( i = 0; i < poldata->num_lists; i++ ) {
             lcp_policy_element_t *elt = pollist->policy_elements;
             uint32_t elts_size = 0;
 
@@ -406,6 +407,8 @@ static bool hash_module(hash_list_t *hl,
                         const char* cmdline, void *base,
                         size_t size)
 {
+    unsigned i, j, k;
+
     if ( hl == NULL ) {
         printk(TBOOT_ERR"Error: input parameter is wrong.\n");
         return false;
@@ -453,8 +456,8 @@ static bool hash_module(hash_list_t *hl,
 
         if ( !g_tpm->hash(g_tpm, 2, base, size, &img_hl) )
             return false;
-        for (unsigned int i=0; i<hl->count; i++) {
-            for (unsigned int j=0; j<img_hl.count; j++) {
+        for (i=0; i<hl->count; i++) {
+            for (j=0; j<img_hl.count; j++) {
                 if (hl->entries[i].alg == img_hl.entries[j].alg) {
                     copy_hash((tb_hash_t *)buf, &hl->entries[i].hash,
                             hl->entries[i].alg);
@@ -464,7 +467,7 @@ static bool hash_module(hash_list_t *hl,
                             2*get_hash_size(hl->entries[i].alg), &final_hl) )
                         return false;
 
-                    for (unsigned int k=0; k<final_hl.count; k++) {
+                    for (k=0; k<final_hl.count; k++) {
                         if (hl->entries[i].alg == final_hl.entries[k].alg) {
                             copy_hash(&hl->entries[i].hash,
                                       &final_hl.entries[k].hash,
@@ -485,7 +488,7 @@ static bool hash_module(hash_list_t *hl,
     {
         tb_hash_t img_hash;
         hl->count = g_tpm->alg_count;
-        for (unsigned int i=0; i<hl->count; i++) {
+        for (i=0; i<hl->count; i++) {
             hl->entries[i].alg = g_tpm->algs[i];
             if ( !hash_buffer((const unsigned char *)cmdline, strlen(cmdline),
                         &hl->entries[i].hash, g_tpm->algs[i]) )
@@ -510,6 +513,8 @@ static bool hash_module(hash_list_t *hl,
 static bool is_hash_in_policy_entry(const tb_policy_entry_t *pol_entry,
                                     tb_hash_t *hash, uint16_t hash_alg)
 {
+    int i;
+
     /* assumes policy entry has been validated */
 
     if ( pol_entry == NULL || hash == NULL) {
@@ -520,7 +525,7 @@ static bool is_hash_in_policy_entry(const tb_policy_entry_t *pol_entry,
     if ( pol_entry->hash_type == TB_HTYPE_ANY )
         return true;
     else if ( pol_entry->hash_type == TB_HTYPE_IMAGE ) {
-        for ( int i = 0; i < pol_entry->num_hashes; i++ ) {
+        for ( i = 0; i < pol_entry->num_hashes; i++ ) {
             if ( are_hashes_equal(get_policy_entry_hash(pol_entry, hash_alg,
                                                         i), hash, hash_alg) )
                 return true;
@@ -536,14 +541,15 @@ static bool is_hash_in_policy_entry(const tb_policy_entry_t *pol_entry,
 static tb_policy_action_t evaluate_error(tb_error_t error)
 {
     tb_policy_action_t action = TB_POLACT_HALT;
+    unsigned i, j;
 
     if ( error == TB_ERR_NONE )
         return TB_POLACT_CONTINUE;
 
-    for ( unsigned int i = 0; i < ARRAY_SIZE(g_policy_map); i++ ) {
+    for ( i = 0; i < ARRAY_SIZE(g_policy_map); i++ ) {
         if ( g_policy_map[i].policy_type == g_policy->policy_type ) {
             action = g_policy_map[i].default_action;
-            for ( unsigned int j = 0;
+            for ( j = 0;
                   j < ARRAY_SIZE(g_policy_map[i].exception_action_table);
                   j++ ) {
                 if ( g_policy_map[i].exception_action_table[j].error ==
@@ -665,6 +671,8 @@ static tb_error_t verify_module(void *base, size_t size,
 
 static void verify_g_policy(void)
 {
+    int i;
+
     /* assumes mbi is valid */
     printk(TBOOT_INFO"verifying policy \n");
 
@@ -701,7 +709,7 @@ static void verify_g_policy(void)
     case TB_EXTPOL_EMBEDDED: 
     {
         VL_ENTRIES(NUM_VL_ENTRIES).hl.count = g_tpm->alg_count;
-        for (int i=0; i<g_tpm->alg_count; i++) {
+        for (i=0; i<g_tpm->alg_count; i++) {
             VL_ENTRIES(NUM_VL_ENTRIES).hl.entries[i].alg = g_tpm->algs[i];
             if ( !hash_buffer(buf, size, &VL_ENTRIES(NUM_VL_ENTRIES).hl.entries[i].hash,
                         g_tpm->algs[i]) )
@@ -741,12 +749,14 @@ void verify_all_modules(void)
 
 static int find_first_nvpolicy_entry(const tb_policy_t *policy)
 {
+    int i;
+
     if ( policy == NULL ) {
         PRINT(TBOOT_ERR"Error: policy pointer is NULL\n");
         return -1;
     }
 
-    for ( int i = 0; i < policy->num_entries; i++ ) {
+    for ( i = 0; i < policy->num_entries; i++ ) {
         tb_policy_entry_t *pol_entry = get_policy_entry(policy, i);
         if ( pol_entry == NULL )
             return -1;
@@ -859,8 +869,10 @@ static tb_error_t verify_nvindex(tb_policy_entry_t *pol_entry,
 
 void verify_all_nvindices(void)
 {
+    int i;
+
     /* go through nv policies in tb policy */
-    for ( int i = find_first_nvpolicy_entry(g_policy);
+    for ( i = find_first_nvpolicy_entry(g_policy);
           i >= 0;
           i = find_next_nvpolicy_entry(g_policy, i) ) {
         tb_policy_entry_t *pol_entry = get_policy_entry(g_policy, i);

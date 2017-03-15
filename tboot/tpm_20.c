@@ -2199,13 +2199,14 @@ static uint32_t tpm20_save_state(struct tpm_if *ti, uint32_t locality)
 static bool tpm20_cap_pcrs(struct tpm_if *ti, u32 locality, int pcr)
 {
     bool was_capped[TPM_NR_PCRS] = {false};
+    unsigned int i;
     hash_list_t cap_val;   /* use whatever val is on stack */
 
     if ( ti == NULL || locality >= TPM_NR_LOCALITIES || pcr == 0 )
         return false;
 
     cap_val.count = ti->banks;
-    for (unsigned int i=0; i<ti->banks; i++)
+    for (i=0; i<ti->banks; i++)
         cap_val.entries[i].alg = ti->algs_banks[i];
 
     if (pcr >= 0) {
@@ -2235,7 +2236,9 @@ static bool tpm20_cap_pcrs(struct tpm_if *ti, u32 locality, int pcr)
 
 static bool alg_is_supported(u16 alg)
 {
-    for (int i=0; i<2; i++) {
+    int i;
+
+    for (i=0; i<2; i++) {
         if (alg == tboot_alg_list[i])
             return true;
     }
@@ -2319,7 +2322,7 @@ static bool tpm20_init(struct tpm_if *ti)
         }
     }
     printk(TBOOT_INFO"TPM: supported alg count = %08X\n", ti->alg_count);
-    for (unsigned int i=0; i<ti->alg_count; i++)
+    for (i=0; i<ti->alg_count; i++)
         printk(TBOOT_INFO"\t\t %08X\n", ti->algs[i]);
 
     if (handle2048 != 0)

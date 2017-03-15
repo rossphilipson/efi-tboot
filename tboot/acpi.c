@@ -169,6 +169,9 @@ struct acpi_rsdp
 /* this function can find dmar table whether or not it was hidden */
 static struct acpi_table_header *find_table(const char *table_name)
 {
+    uint64_t *curr_table_64;
+    uint32_t *curr_table_32;
+
     if ( !find_rsdp() ) {
         printk(TBOOT_ERR"no rsdp to use\n");
         return NULL;
@@ -179,10 +182,10 @@ static struct acpi_table_header *find_table(const char *table_name)
                                          /* because value will be ignored */
 
     if ( rsdp->rsdp1.revision >= 2 && xsdt != NULL ) { /*  ACPI 2.0+ */
-        for ( uint64_t *curr_table = (uint64_t*)xsdt->table_offsets;
-              curr_table < (uint64_t *)((void *)xsdt + xsdt->hdr.length);
-              curr_table++ ) {
-            table = (struct acpi_table_header *)(uintptr_t)*curr_table;
+        for ( curr_table_64 = (uint64_t*)xsdt->table_offsets;
+              curr_table_64 < (uint64_t *)((void *)xsdt + xsdt->hdr.length);
+              curr_table_64++ ) {
+            table = (struct acpi_table_header *)(uintptr_t)*curr_table_64;
             if ( memcmp(table->signature, table_name,
                         sizeof(table->signature)) == 0 )
                 return table;
@@ -196,10 +199,10 @@ static struct acpi_table_header *find_table(const char *table_name)
             return NULL;
         }
 
-        for ( uint32_t *curr_table = rsdt->table_offsets;
-              curr_table < (uint32_t *)((void *)rsdt + rsdt->hdr.length);
-              curr_table++ ) {
-            table = (struct acpi_table_header *)(uintptr_t)*curr_table;
+        for ( curr_table_32 = rsdt->table_offsets;
+              curr_table_32 < (uint32_t *)((void *)rsdt + rsdt->hdr.length);
+              curr_table_32++ ) {
+            table = (struct acpi_table_header *)(uintptr_t)*curr_table_32;
             if ( memcmp(table->signature, table_name,
                         sizeof(table->signature)) == 0 )
                 return table;

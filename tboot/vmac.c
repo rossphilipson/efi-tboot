@@ -17,7 +17,9 @@
 #include <efibase.h>
 #include <types.h>
 #include <vmac.h>
-/*#define UINT64_C(x)  x##ULL*/
+#ifndef UINT64_C
+#define UINT64_C(x)  x##ULL
+#endif
 /* end for tboot */
 
 /* Enable code tuned for 64-bit registers; otherwise tuned for 32-bit */

@@ -66,13 +66,15 @@ static void comc_putchar(int c)
 
 static void comc_setup(int speed)
 {
+    int wait;
+
     OUTB(com_cfcr, CFCR_DLAB | g_com_port.comc_fmt);
     OUTB(com_dlbl, COMC_BPS(speed) & 0xff);
     OUTB(com_dlbh, COMC_BPS(speed) >> 8);
     OUTB(com_cfcr, g_com_port.comc_fmt);
     OUTB(com_mcr, MCR_RTS | MCR_DTR);
 
-    for ( int wait = COMC_TXWAIT; wait > 0; wait-- ) {
+    for ( wait = COMC_TXWAIT; wait > 0; wait-- ) {
         INB(com_data);
         if ( !(INB(com_lsr) & LSR_RXRDY) )
             break;

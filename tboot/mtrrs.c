@@ -158,6 +158,7 @@ bool set_mtrrs_for_acmod(const acm_hdr_t *hdr)
 void save_mtrrs(mtrr_state_t *saved_state)
 {
     mtrr_cap_t mtrr_cap;
+    unsigned int ndx;
 
     /* IA32_MTRR_DEF_TYPE MSR */
     saved_state->mtrr_def_type.raw = rdmsr(MSR_MTRRdefType);
@@ -175,7 +176,7 @@ void save_mtrrs(mtrr_state_t *saved_state)
         saved_state->num_var_mtrrs = mtrr_cap.vcnt;
 
     /* physmask's and physbase's */
-    for ( unsigned int ndx = 0; ndx < saved_state->num_var_mtrrs; ndx++ ) {
+    for ( ndx = 0; ndx < saved_state->num_var_mtrrs; ndx++ ) {
         saved_state->mtrr_physmasks[ndx].raw =
             rdmsr(MTRR_PHYS_MASK0_MSR + ndx*2);
         saved_state->mtrr_physbases[ndx].raw =
@@ -187,12 +188,14 @@ void save_mtrrs(mtrr_state_t *saved_state)
 
 static void print_mtrrs(const mtrr_state_t *saved_state)
 {
+    unsigned int i;
+
     printk(TBOOT_DETA"mtrr_def_type: e = %d, fe = %d, type = %x\n",
            saved_state->mtrr_def_type.e, saved_state->mtrr_def_type.fe,
            saved_state->mtrr_def_type.type );
     printk(TBOOT_DETA"mtrrs:\n");
     printk(TBOOT_DETA"\t\t    base          mask      type  v\n");
-    for ( unsigned int i = 0; i < saved_state->num_var_mtrrs; i++ ) {
+    for ( i = 0; i < saved_state->num_var_mtrrs; i++ ) {
         printk(TBOOT_DETA"\t\t%13.13Lx %13.13Lx  %2.2x  %d\n",
                (uint64_t)saved_state->mtrr_physbases[i].base,
                (uint64_t)saved_state->mtrr_physmasks[i].mask,
@@ -204,6 +207,7 @@ static void print_mtrrs(const mtrr_state_t *saved_state)
 /* base should be 4k-bytes aligned, no invalid overlap combination */
 static int get_page_type(const mtrr_state_t *saved_state, uint32_t base)
 {
+    unsigned int i;
     int type = -1;
     bool wt = false;
     uint64_t maxphyaddr_mask = get_maxphyaddr_mask();
@@ -211,7 +215,7 @@ static int get_page_type(const mtrr_state_t *saved_state, uint32_t base)
     /* omit whether the fix mtrrs are enabled, just check var mtrrs */
 
     base >>= PAGE_SHIFT;
-    for ( unsigned int i = 0; i < saved_state->num_var_mtrrs; i++ ) {
+    for ( i = 0; i < saved_state->num_var_mtrrs; i++ ) {
         const mtrr_physbase_t *base_i = &saved_state->mtrr_physbases[i];
         const mtrr_physmask_t *mask_i = &saved_state->mtrr_physmasks[i];
 
@@ -342,6 +346,7 @@ bool validate_mtrrs(const mtrr_state_t *saved_state)
     mtrr_cap_t mtrr_cap;
     uint64_t maxphyaddr_mask = get_maxphyaddr_mask();
     uint64_t max_pages = maxphyaddr_mask + 1;  /* max # 4k pages supported */
+    unsigned int ndx, i;
 
     /* check is meaningless if MTRRs were disabled */
     if ( saved_state->mtrr_def_type.e == 0 )
@@ -356,7 +361,7 @@ bool validate_mtrrs(const mtrr_state_t *saved_state)
     }
 
     /* variable MTRRs describing non-contiguous memory regions */
-    for ( unsigned int ndx = 0; ndx < saved_state->num_var_mtrrs; ndx++ ) {
+    for ( ndx = 0; ndx < saved_state->num_var_mtrrs; ndx++ ) {
         uint64_t tb;
 
         if ( saved_state->mtrr_physmasks[ndx].v == 0 )
@@ -384,16 +389,17 @@ bool validate_mtrrs(const mtrr_state_t *saved_state)
     }
 
     /* overlaping regions with invalid memory type combinations */
-    for ( unsigned int ndx = 0; ndx < saved_state->num_var_mtrrs; ndx++ ) {
+    for ( ndx = 0; ndx < saved_state->num_var_mtrrs; ndx++ ) {
         const mtrr_physbase_t *base_ndx = &saved_state->mtrr_physbases[ndx];
         const mtrr_physmask_t *mask_ndx = &saved_state->mtrr_physmasks[ndx];
 
         if ( mask_ndx->v == 0 )
             continue;
 
-        for ( unsigned int i = ndx + 1; i < saved_state->num_var_mtrrs; i++ ) {
+        for ( i = ndx + 1; i < saved_state->num_var_mtrrs; i++ ) {
             const mtrr_physbase_t *base_i = &saved_state->mtrr_physbases[i];
             const mtrr_physmask_t *mask_i = &saved_state->mtrr_physmasks[i];
+            unsigned int j;
 
             if ( mask_i->v == 0 )
                 continue;
@@ -420,7 +426,6 @@ bool validate_mtrrs(const mtrr_state_t *saved_state)
             /* need to check whether there is a third region which has type */
             /* of UNCACHABLE and contains at least one of these two regions. */
             /* If there is, then the combination of these 3 region is valid */
-            unsigned int j;
             for ( j = 0; j < saved_state->num_var_mtrrs; j++ ) {
                 const mtrr_physbase_t *base_j
                         = &saved_state->mtrr_physbases[j];
@@ -464,6 +469,8 @@ bool validate_mtrrs(const mtrr_state_t *saved_state)
 
 void restore_mtrrs(const mtrr_state_t *saved_state)
 {
+    unsigned int ndx;
+
     /* called by apply_policy() so use saved ptr */
     if ( saved_state == NULL )
         saved_state = g_saved_mtrrs;
@@ -475,7 +482,7 @@ void restore_mtrrs(const mtrr_state_t *saved_state)
     set_all_mtrrs(false);
 
     /* physmask's and physbase's */
-    for ( unsigned int ndx = 0; ndx < saved_state->num_var_mtrrs; ndx++ ) {
+    for ( ndx = 0; ndx < saved_state->num_var_mtrrs; ndx++ ) {
         wrmsr(MTRR_PHYS_MASK0_MSR + ndx*2,
               saved_state->mtrr_physmasks[ndx].raw);
         wrmsr(MTRR_PHYS_BASE0_MSR + ndx*2,
@@ -494,6 +501,7 @@ bool set_mem_type(const void *base, uint32_t size, uint32_t mem_type)
 {
     int num_pages;
     int ndx;
+    int j;
     mtrr_def_type_t mtrr_def_type;
     mtrr_cap_t mtrr_cap;
     mtrr_physmask_t mtrr_physmask;
@@ -540,7 +548,7 @@ bool set_mem_type(const void *base, uint32_t size, uint32_t mem_type)
           base_v = base_v >>1 ;
 
     }
-    for (int j=i-12; j>0; j--) mtrr_s =mtrr_s*2; //mtrr_s = mtrr_s << 1
+    for ( j = i - 12; j > 0; j-- ) mtrr_s =mtrr_s*2; //mtrr_s = mtrr_s << 1
     printk(TBOOT_DETA"The maximum allowed MTRR range size=%d Pages \n", mtrr_s);
 	
     while (num_pages >= mtrr_s){

@@ -86,16 +86,18 @@ static bool verify_bios_spec_ver_elt(const heap_ext_data_element_t *elt)
 static void print_acm_elt(const heap_ext_data_element_t *elt)
 {
     const heap_acm_elt_t *acm_elt = (const heap_acm_elt_t *)elt->data;
+    unsigned int i;
 
     printk(TBOOT_DETA"\t\t ACM:\n");
     printk(TBOOT_DETA"\t\t     num_acms: %u\n", acm_elt->num_acms);
-    for ( unsigned int i = 0; i < acm_elt->num_acms; i++ )
+    for ( i = 0; i < acm_elt->num_acms; i++ )
         printk(TBOOT_DETA"\t\t     acm_addrs[%u]: 0x%jx\n", i, acm_elt->acm_addrs[i]);
 }
 
 static bool verify_acm_elt(const heap_ext_data_element_t *elt)
 {
     const heap_acm_elt_t *acm_elt = (const heap_acm_elt_t *)elt->data;
+    unsigned int i;
 
     if ( elt->size != sizeof(*elt) + sizeof(*acm_elt) +
          acm_elt->num_acms*sizeof(uint64_t) ) {
@@ -107,7 +109,7 @@ static bool verify_acm_elt(const heap_ext_data_element_t *elt)
     if ( acm_elt->num_acms == 0 )
         printk(TBOOT_WARN"HEAP_ACM element has no ACM addrs\n");
 
-    for ( unsigned int i = 0; i < acm_elt->num_acms; i++ ) {
+    for ( i = 0; i < acm_elt->num_acms; i++ ) {
         if ( acm_elt->acm_addrs[i] == 0 ) {
             printk(TBOOT_ERR"HEAP_ACM element ACM addr (%u) is NULL\n", i);
             return false;
@@ -295,12 +297,13 @@ static void print_evt_log_ptr_elt_2(const heap_ext_data_element_t *elt)
     const heap_event_log_ptr_elt2_t *elog_elt =
               (const heap_event_log_ptr_elt2_t *)elt->data;
     const heap_event_log_descr_t *log_descr;
+    unsigned int i;
 
     printk(TBOOT_DETA"\t\t EVENT_LOG_PTR:\n");
     printk(TBOOT_DETA"\t\t       size: %u\n", elt->size);
     printk(TBOOT_DETA"\t\t      count: %d\n", elog_elt->count);
 
-    for ( unsigned int i=0; i<elog_elt->count; i++ ) {
+    for ( i = 0; i < elog_elt->count; i++ ) {
         log_descr = &elog_elt->event_log_descr[i];
         printk(TBOOT_DETA"\t\t\t Log Descrption:\n");
         printk(TBOOT_DETA"\t\t\t             Alg: %u\n", log_descr->alg);
@@ -671,9 +674,10 @@ static void print_sinit_mdrs(const sinit_mdr_t mdrs[], uint32_t num_mdrs)
     static const char *mem_types[] = {"GOOD", "SMRAM OVERLAY",
                                       "SMRAM NON-OVERLAY",
                                       "PCIE EXTENDED CONFIG", "PROTECTED"};
+    unsigned int i;
 
     printk(TBOOT_DETA"\t sinit_mdrs:\n");
-    for ( unsigned int i = 0; i < num_mdrs; i++ ) {
+    for ( i = 0; i < num_mdrs; i++ ) {
         printk(TBOOT_DETA"\t\t %016Lx - %016Lx ", mdrs[i].base,
                mdrs[i].base + mdrs[i].length);
         if ( mdrs[i].mem_type < sizeof(mem_types)/sizeof(mem_types[0]) )

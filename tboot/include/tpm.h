@@ -381,12 +381,14 @@ typedef union {
 
 static inline void _read_tpm_reg(int locality, u32 reg, u8 *_raw, size_t size)
 {
-    for ( size_t i = 0; i < size; i++ )   _raw[i] = readb((TPM_LOCALITY_BASE_N(locality) | reg) + i);
+    size_t i;
+    for ( i = 0; i < size; i++ )   _raw[i] = readb((TPM_LOCALITY_BASE_N(locality) | reg) + i);
 }
 
 static inline void _write_tpm_reg(int locality, u32 reg, u8 *_raw, size_t size)
 {
-    for ( size_t i = 0; i < size; i++ )  writeb((TPM_LOCALITY_BASE_N(locality) | reg) + i, _raw[i]);
+    size_t i;
+    for ( i = 0; i < size; i++ )  writeb((TPM_LOCALITY_BASE_N(locality) | reg) + i, _raw[i]);
 }
 
 
@@ -398,7 +400,9 @@ static inline void _write_tpm_reg(int locality, u32 reg, u8 *_raw, size_t size)
 
 static inline void _reverse_copy(uint8_t *out, uint8_t *in, uint32_t count)
 {
-    for ( uint32_t i = 0; i < count; i++ )
+    uint32_t i;
+
+    for ( i = 0; i < count; i++ )
         out[i] = in[count - i - 1];
 }
 

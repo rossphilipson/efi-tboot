@@ -1,5 +1,15 @@
 ###############################################################################
-Diffs
+Notes
+###############################################################################
+
+Most of the source code in here was taken from TBOOT 1.9.5. Quite a bit of it
+did not need modification. The Diffs section tracks the bits that were
+modified. The Issues section is rather sparse. Most outstanding issues, work
+or things that need to be addressed are in TODOs in comment in the code.
+
+###############################################################################
+Diffs From Original
+###############################################################################
 
 include/types.h
   ifdef NULL
@@ -34,6 +44,7 @@ include/tb_error.h
 include/tpm.h
   Removed extern
   Set tboot_alg_list size to 2
+  Hoisted variable decls out of loops.
 
 include/tpm_20.h
   Removed TRUE/FALSE
@@ -50,6 +61,10 @@ include/page.h
 
 include/ctype.h
   Removed extern and use CTYPE_SIZE
+
+include/tb_policy.h
+  Hoisted variable decls out of loops.
+  TODO why is all that stuff inlined?
 
 include/config.h
   TODO about setting _start, _end
@@ -113,22 +128,26 @@ acpi.c
   Did return (struct acpi_rsdt *)(uint64_t)rsdp->rsdp1.rsdt;
   Use EFI to get RSDP
   Added cast to uint64_t* of ACPI struct
+  Hoisted variable decls out of loops.
 
 printk.c
   Replaced memlog with 1.7.4 one and inlined the buffer in the struct
 
 misc.c
   Use CTYPE_SIZE for _ctype array size
+  Hoisted variable decls out of loops.
 
 mtrr.c
   Use read/write rflags
   Fix 3 casts w/ unsigned long long
+  Hoisted variable decls out of loops.
 
 vsnprintf.c
   Cast arg in call to div64
 
 com.c
   Removed extern
+  Hoisted variable decls out of loops.
 
 policy.c
   Fix lcp pointer in unwrap_lcp_policy unsigned long long
@@ -137,13 +156,18 @@ policy.c
   Stub out verify modules function
   Stub out bits of verify_module function and fix args
   Call new LCP getter
+  Hoisted variable decls out of loops.
+
+vsprintf.c
+  Hoisted variable decls out of loops.
 
 verify.c
   Fix inline asm at top getting RFLAGS
   Stubb out a bunch of e820 related functions w/ TODOs
 
 vmac.c
-  Removed redef of ALIGN and UINT64_C
+  Removed redef of ALIGN
+  Check and define UINT64_C
 
 paging.c
   Fix for 64b use unsigned long long
@@ -158,11 +182,13 @@ tpm.c
 
 tpm_12.c
   Stubbed some crap so it builds, see TODOs
+  Hoisted variable decls out of loops.
 
 tpm_20.c
   Removed loader.h and loader ctx extern (not needed)
   Had to use -mno-stack-arg-probe to fix stack problems
   Stubbed some crap so it builds, see TODOs
+  Hoisted variable decls out of loops.
 
 hash.c
   Modified stack buffer to not be stupid
@@ -171,11 +197,13 @@ acmod.c
   Modified a number of pointer casts to ull
   See existing TODO about racm
   Move global g_sinit here from txt.c
+  Hoisted variable decls out of loops.
 
 heap.c
   Removed include multiboot.h, lctx_addr check
   Modified a number of pointer casts to ull
   Fixed calls to verify_ext_data_elts with extra sizeof(size)
+  Hoisted variable decls out of loops.
 
 error.c
   Removed include loader.h
@@ -183,12 +211,15 @@ error.c
 
 cmdline.c
   Stub out min_ram stuff for now
+  Hoisted variable decls out of loops.
 
 vga.c
   Change from int to long long for writew/readw
+  Hoisted variable decls out of loops.
 
 ###############################################################################
-Special
+Special Cases
+###############################################################################
 
 The following were put together bit by bit so changes are not tracked here:
 
@@ -205,7 +236,8 @@ index.c
 memcmp.c
 
 ###############################################################################
---- Issues ---
+Issues
+###############################################################################
 
  - Had to initialize the cmdline to defaults otherwise the calls before loading
 the cmdline were returning garbage.

@@ -93,7 +93,9 @@ static unsigned long write_pads_to_buffer(char *buf, size_t buf_len,
                                           unsigned long buf_pos, char pad,
                                           size_t pad_len)
 {
-    for ( unsigned int i = 0; i < pad_len; i++ )
+    unsigned int i;
+
+    for ( i = 0; i < pad_len; i++ )
         buf_pos = write_char_to_buffer(buf, buf_len, buf_pos, pad);
 
     return buf_pos;

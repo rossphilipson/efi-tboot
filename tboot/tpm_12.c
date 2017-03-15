@@ -896,7 +896,8 @@ static uint32_t _tpm12_unseal(uint32_t locality, tpm_key_handle_t hkey,
 }
 
 #define XOR_BLOB_TYPE(data, pad) {\
-    for ( uint32_t i = 0; i < sizeof(*(data)); i++ ) \
+    uint32_t i; \
+    for ( i = 0; i < sizeof(*(data)); i++ ) \
         ((uint8_t *)data)[i] ^= ((uint8_t *)pad)[i % sizeof(*(pad))];\
 }
 

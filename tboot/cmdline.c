@@ -114,7 +114,9 @@ static const tb_loglvl_map_t g_loglvl_map[] = {
 
 static const char* get_option_val(const cmdline_option_t *options,  char vals[][MAX_VALUE_LEN],    const char *opt_name)
 {
-    for ( int i = 0; options[i].name != NULL; i++ ) {
+    int i;
+
+    for ( i = 0; options[i].name != NULL; i++ ) {
         if ( strcmp(options[i].name, opt_name) == 0 )
             return vals[i];
     }

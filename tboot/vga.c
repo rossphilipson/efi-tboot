@@ -61,12 +61,14 @@ static inline void reset_screen(void)
 
 static void scroll_screen(void)
 {
-    for ( long long y = 1; y < MAX_LINES; y++ ) {
+    long long x,y;
+
+    for ( y = 1; y < MAX_LINES; y++ ) {
         for ( long long x = 0; x < MAX_COLS; x++ )
             writew(VGA_ADDR(x, y-1), readw(VGA_ADDR(x, y)));
     }
     /* clear last line */
-    for ( long long x = 0; x < MAX_COLS; x++ )
+    for ( x = 0; x < MAX_COLS; x++ )
         writew(VGA_ADDR(x, MAX_LINES-1), 0x720);
 }
 

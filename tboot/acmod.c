@@ -297,6 +297,7 @@ void print_txt_caps(const char *prefix, txt_caps_t caps)
 static void print_acm_hdr(const acm_hdr_t *hdr, const char *mod_name)
 {
     acm_info_table_t *info_table;
+    unsigned int i;
 
     printk(TBOOT_DETA"AC module header dump for %s:\n",
            (mod_name == NULL) ? "?" : mod_name);
@@ -369,7 +370,7 @@ static void print_acm_hdr(const acm_hdr_t *hdr, const char *mod_name)
         return;
     }
     printk(TBOOT_DETA"\t\t count: %u\n", chipset_id_list->count);
-    for ( unsigned int i = 0; i < chipset_id_list->count; i++ ) {
+    for ( i = 0; i < chipset_id_list->count; i++ ) {
         printk(TBOOT_DETA"\t\t entry %u:\n", i);
         acm_chipset_id_t *chipset_id = &(chipset_id_list->chipset_ids[i]);
         printk(TBOOT_DETA"\t\t     flags: 0x%x\n", chipset_id->flags);
@@ -389,7 +390,7 @@ static void print_acm_hdr(const acm_hdr_t *hdr, const char *mod_name)
             return;
         }
         printk(TBOOT_DETA"\t\t count: %u\n", proc_id_list->count);
-        for ( unsigned int i = 0; i < proc_id_list->count; i++ ) {
+        for ( i = 0; i < proc_id_list->count; i++ ) {
             printk(TBOOT_DETA"\t\t entry %u:\n", i);
             acm_processor_id_t *proc_id = &(proc_id_list->processor_ids[i]);
             printk(TBOOT_DETA"\t\t     fms: 0x%x\n", proc_id->fms);
@@ -412,7 +413,7 @@ static void print_acm_hdr(const acm_hdr_t *hdr, const char *mod_name)
         printk(TBOOT_DETA"\t\t      tpm_family : 0x%x\n", info_list->capabilities.tpm_family);
         printk(TBOOT_DETA"\t\t      tpm_nv_index_set : 0x%x\n", info_list->capabilities.tpm_nv_index_set);
         printk(TBOOT_DETA"\t\t alg count: %u\n", info_list->count);
-        for ( unsigned int i = 0; i < info_list->count; i++ ) {
+        for ( i = 0; i < info_list->count; i++ ) {
             printk(TBOOT_DETA"\t\t     alg_id: 0x%x\n", info_list->alg_id[i]);
         }
     }

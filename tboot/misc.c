@@ -54,7 +54,9 @@
  */
 void print_hex(const char *prefix, const void *prtptr, size_t size)
 {
-    for ( size_t i = 0; i < size; i++ ) {
+    size_t i;
+
+    for ( i = 0; i < size; i++ ) {
         if ( i % 16 == 0 && prefix != NULL )
             printk(TBOOT_DETA"\n%s", prefix);
         printk(TBOOT_DETA"%02x ", *(uint8_t *)prtptr++);

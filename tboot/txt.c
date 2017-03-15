@@ -561,6 +561,7 @@ bool txt_prepare_cpu(void)
 {
     unsigned long cr0;
     uint64_t mcg_cap, mcg_stat, msr_efer, rflags;
+    unsigned int i;
 
     /* must be running at CPL 0 => this is implicit in even getting this far */
     /* since our bootstrap code loads a GDT, etc. */
@@ -631,7 +632,7 @@ bool txt_prepare_cpu(void)
 
     /* check if all machine check regs are clear */
     mcg_cap = rdmsr(MSR_MCG_CAP);
-    for ( unsigned int i = 0; i < (mcg_cap & 0xff); i++ ) {
+    for ( i = 0; i < (mcg_cap & 0xff); i++ ) {
         mcg_stat = rdmsr(MSR_MC0_STATUS + 4*i);
         if ( mcg_stat & (1ULL << 63) ) {
             printk(TBOOT_ERR"MCG[%u] = %Lx ERROR\n", i, mcg_stat);
