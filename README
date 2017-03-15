@@ -18,8 +18,8 @@ in conjunction with Xen at the moment. The current development work is being
 done on Fedora 25 x64.
 
 The status as of March 14, 2017 is:
- - EFI TBOOT will boot, but it needs a few key strokes to get getting
-   going (this is for debugging purposes).
+ - EFI TBOOT will boot, but it needs a few key strokes to get going (this is
+   for debugging purposes).
  - EFI TBOOT will relocate itself to EFI runtime memory and setup a shared
    runtime variable with Xen.
  - EFI related configuration setup is done as well as standard TBOOT pre-
@@ -61,7 +61,7 @@ $ sudo dnf install mtools.x86_64
 $ sudo dnf install efibootmgr
 
 Get the latest gnu-efi package, make and install it (see README.gnuefi in the
-project). Note Fedora had a gnu-efi RPM but these was some issue with it.
+project). Note Fedora has a gnu-efi RPM but there was some issue with it.
 Using the latest and building it is working fine.
 
 https://sourceforge.net/projects/gnu-efi/
@@ -95,8 +95,8 @@ At this point, building Xen is more or less following the instructions here:
 
 https://wiki.xenproject.org/index.php?title=Xen_EFI&oldid=14685
 
-Note this is an early version of the instructions which is being used. The
-xen.fedora.efi.build.patch patch mentioned here is already in the efi-tboot
+This is an earlier version of the instructions which is being used here. The
+xen.fedora.efi.build.patch patch mentioned on the pages already in the efi-tboot
 patch set for Xen and applied above. We will sort out build issues like using
 the new instructions later. To build and install:
 
@@ -134,7 +134,7 @@ $ cd efi-tboot/tboot
 $ make
 $ sudo mkdir /boot/efi/EFI/TBOOT
 $ sudo cp tboot.efi /boot/efi/EFI/TBOOT
-$ cp tboot.cfg /boot/efi/EFI/TBOOT
+$ sudo cp tboot.cfg /boot/efi/EFI/TBOOT
 
 Create new EFI boot target:
 

@@ -404,7 +404,7 @@ static EFI_STATUS efi_load_configs(void)
         goto err;
     }
 
-    /* Make a copy of the raw TBOOT config in the MLE */
+    /* Make a copy of the raw Xen config in the MLE */
     memcpy(g_xen_config_file, (void*)addr, size);
     g_configs[EFI_CONFIG_XEN].u.buffer = g_xen_config_file;
     g_configs[EFI_CONFIG_XEN].size = size;
