@@ -337,9 +337,9 @@ start64:
 	movq	%rax, %rbx
 	movw	%bx, (%rcx)
 	shrq	$16, %rbx
-	movw	%bx, 12(%rcx)
+	movw	%bx, 6(%rcx)
 	shrq	$16, %rbx
-	movl	%ebx, 16(%rcx)
+	movl	%ebx, 8(%rcx)
 	cmpw	$18, %dx
 	jnz	2f
 	/* MCE vector */
