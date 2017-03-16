@@ -313,8 +313,10 @@ entry64:
 
 start64:
 	/* Clear the .bss of pre-launch stuffs */
+	cld
 	leaq	_bss_start(%rip), %rdi
-	leaq	_bss_size(%rip), %rcx
+	leaq	_bss_size(%rip), %rdx
+	movq	(%rdx), %rcx
 	xorq	%rax, %rax
 	rep stosb
 
