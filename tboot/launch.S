@@ -118,6 +118,7 @@ ENTRY(post_launch_entry)
 	movl	%eax, (%ecx)
 
 	/* Zero out all page table pages so there are no surprises */
+	cld	/* just in case */
 	movl	%ebx, %edi
 	subl	$(TBOOT_RTMEM_SIZE + PAGE_SIZE), %edi
 	xorl	%eax, %eax
@@ -207,7 +208,7 @@ ENTRY(post_launch_entry)
 	/* Enable IA-32e mode and paging */
 	movl	$MSR_EFER, %ecx
 	rdmsr
-	orl	$_EFER_LME, %eax
+	orl	$(1 << _EFER_LME), %eax
 	wrmsr
 	movl	%cr0, %eax
 	orl	$(CR0_PG | CR0_NE | CR0_ET | CR0_MP | CR0_PE), %eax
@@ -230,7 +231,7 @@ jump64:
 
 entry64:
 	/* Load data segment regs */
-	movw	DS_SEL64, %ax
+	movw	$DS_SEL64, %ax
 	movw	%ax, %ds
 	movw	%ax, %es
 	movw	%ax, %fs
@@ -378,7 +379,7 @@ int_handler:
 	.align 16
 gdt_desc64:
 	.word	gdt_table64_end - gdt_table64 - 1 /* Limit */
-	.long	0x00000000 /* Base */
+	.quad	0x0000000000000000 /* Base */
 gdt_desc64_end:
 
 gdt_desc64_ptr:
