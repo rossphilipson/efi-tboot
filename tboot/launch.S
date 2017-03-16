@@ -256,7 +256,7 @@ entry64:
 	 */
 	leaq	post_launch_entry(%rip), %rax
 	cmpl	%eax, %ebx
-	jne 	1f
+	jnz 	1f
 
 	/*
 	 * Verify last entry in MLE page table is the one we expected
@@ -270,7 +270,7 @@ entry64:
 	 * TXT heap == BiosDataSize.
 	 */
 	movq	$TXT_PRIV_CONFIG_REGS_BASE, %rcx
-	mov	TXTCR_HEAP_BASE(%rcx), %rax
+	movq	TXTCR_HEAP_BASE(%rcx), %rax
 	addq	(%rax), %rax                       /* skip BiosData */
 	addq	(%rax), %rax                       /* skip OsMleData */
 	movq	(MLE_PGTBL_OFFSET + 8)(%rax), %rax /* addr of MLE page table */
@@ -280,20 +280,21 @@ entry64:
 	andq	$PAGE_MASK, %rax
 	/* Get the MLE size; this value was stored in the MLE and measured */
 	leaq	_mle_size(%rip), %rdx
-	movq	%rdx, %rcx
+	movq	(%rdx), %rcx
 	/* Use size to move past last valid PTE then one back */
-	shrq	$PAGE_SHIFT - 3, %rcx /* Like size div 512 */
+	shrq	$(PAGE_SHIFT - 3), %rcx /* Like size div 512 */
 	subq	$8, %rcx
-	addq	%rcx, %rax
-	movq	(%rax), %rax          /* PTE of last page */
+	addq	%rcx, %rax              /* Offset in PT to PTE */
+	movq	(%rax), %rax            /* addr of last page from PTE */
 	andq	$PAGE_MASK, %rax
 	/* Calculate expected addr of last page */
+	movq	(%rdx), %rdx
 	addq	%rdx, %rbx
 	decq	%rbx             /* MLE start + size - 1 addr of last byte */
 	andq	$PAGE_MASK, %rbx /* ...rounded to page start */
 	/* Are they equal? */
 	cmpq	%rbx, %rax
-	je	start64
+	jz	start64
 	/* Else fall through and die */
 
 	/* Layout check failed so TXT RESET with a special error code */
