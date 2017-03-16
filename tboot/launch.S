@@ -76,6 +76,18 @@ _mle_start:
  * far smaller than PAGE_SIZE.
  */
 ENTRY(post_launch_entry)
+	/*
+	 * Since the spec says these segment registers are undefined (though
+	 * actually have valid selectors in them in reality), restore them to
+	 * the the selector for the data seg desc just after the code seg desc.
+	 */
+	xorl	%eax, %eax
+	movw	%cs, %ax
+	addw	$8, %ax
+	movw	%ax, %ds
+	movw	%ax, %es
+	movw	%ax, %ss
+
         /*
 	 * Per the spec:
 	 * EBX - MLE entry point physical address.
@@ -103,12 +115,6 @@ ENTRY(post_launch_entry)
 	addl	$(gdt_desc64 - _mle_start + 2), %ecx
 	movl	%ebx, %eax
 	addl	$(gdt_table64 - _mle_start), %eax
-	movl	%eax, (%ecx)
-
-	movl	%ebx, %ecx
-	addl	$(gdt_desc64_ptr - _mle_start), %ecx
-	movl	%ebx, %eax
-	addl	$(gdt_desc64 - _mle_start), %eax
 	movl	%eax, (%ecx)
 
 	movl	%ebx, %ecx
@@ -219,7 +225,7 @@ ENTRY(post_launch_entry)
 
 	/* Setup GDT and ljmp to 64b mode */
 	movl	%esi, %ebx
-	addl	$(gdt_desc64_ptr - _mle_start), %ebx
+	addl	$(gdt_desc64 - _mle_start), %ebx
 	lgdt	(%ebx)
 
 jump64:
@@ -381,9 +387,6 @@ gdt_desc64:
 	.word	gdt_table64_end - gdt_table64 - 1 /* Limit */
 	.quad	0x0000000000000000 /* Base */
 gdt_desc64_end:
-
-gdt_desc64_ptr:
-	.long	0x00000000 /* Pointer to GDT descriptor */
 
 	.align 16
 gdt_table64:
