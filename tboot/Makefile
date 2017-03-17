@@ -3,7 +3,7 @@
 # Build with MinGW compiler, note .rdata section in .lds file
 CC = x86_64-w64-mingw32-gcc
 LD = x86_64-w64-mingw32-ld
-CFLAGS = -ffreestanding -fPIE -fno-exceptions -fshort-wchar -mno-ms-bitfields -DTPM_TRACE
+CFLAGS = -ffreestanding -fPIE -fno-exceptions -fshort-wchar -mno-ms-bitfields # Too much: -DTPM_TRACE
 CFLAGS += -I/usr/include/efi -I/usr/include/efi/x86_64 -I/usr/include/efi/protocol -Iinclude
 AFLAGS = -D__ASSEMBLY__ $(patsubst -std=gnu%,,$(CFLAGS))
 #LDFLAGS = -nostdlib -Wl,-pie -shared -Wl,--no-seh -Wl,--subsystem,10 -e efi_main

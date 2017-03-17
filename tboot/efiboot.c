@@ -89,7 +89,7 @@ static void efi_debug_print_g(void)
     printk("  g_rtmem_base    = %p\n", g_rtmem_base);
     printk("  g_image_size    = %x\n", (uint32_t)g_image_size);
 
-    efi_debug_pause();
+    /*efi_debug_pause();*/
 }
 
 static void efi_begin_launch(efi_xen_tboot_data_t *xtd);
