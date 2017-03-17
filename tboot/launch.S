@@ -381,7 +381,8 @@ ENTRY(bsp_stack_ref)
  * Interrupt handler
  */
 int_handler:
-	call handle_exception
+	movq	(%rsp), %rcx
+	call	handle_exception
 	ud2
 
 /* GDT */
