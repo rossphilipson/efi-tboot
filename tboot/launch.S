@@ -282,10 +282,11 @@ entry64:
 	leaq	_mle_size(%rip), %rdx
 	movq	(%rdx), %rcx
 	/* Use size to move past last valid PTE then one back */
-	shrq	$(PAGE_SHIFT - 3), %rcx /* Like size div 512 */
-	subq	$8, %rcx
+	decq	%rcx                    /* Handle size not mult of page size */
+	shrq	$(PAGE_SHIFT - 3), %rcx /* Size DIV 512 for 8b entries */
+	andq	$~7, %rcx               /* Mask to floor */
 	addq	%rcx, %rax              /* Offset in PT to PTE */
-	movq	(%rax), %rax            /* addr of last page from PTE */
+	movq	(%rax), %rax            /* Addr of last page from PTE */
 	andq	$PAGE_MASK, %rax
 	/* Calculate expected addr of last page */
 	movq	(%rdx), %rdx
