@@ -6,8 +6,8 @@ LD = x86_64-w64-mingw32-ld
 CFLAGS = -ffreestanding -fPIE -fno-exceptions -fshort-wchar -mno-ms-bitfields # Too much: -DTPM_TRACE
 CFLAGS += -I/usr/include/efi -I/usr/include/efi/x86_64 -I/usr/include/efi/protocol -Iinclude
 AFLAGS = -D__ASSEMBLY__ $(patsubst -std=gnu%,,$(CFLAGS))
-#LDFLAGS = -nostdlib -Wl,-pie -shared -Wl,--no-seh -Wl,--subsystem,10 -e efi_main
-LDFLAGS = -nostdlib -pie -shared --no-seh --subsystem=10 -e efi_main
+#LDFLAGS = -nostdlib -Wl,-pie -Wl,--no-seh -Wl,--subsystem,10 -e efi_main
+LDFLAGS = -nostdlib -pie --no-seh --subsystem=10 -e efi_main
 ASM = launch.S bits.S # must be in order
 SRC = $(wildcard *.c)
 OBJ = $(ASM:.S=.o) # must be first
