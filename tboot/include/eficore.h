@@ -97,6 +97,7 @@ uint8_t *efi_get_rsdp(void);
 
 void *efi_get_pe_section(const char *name, void *image_base,
                          uint64_t *size_out);
+void *efi_get_pe_export(const char *name, void *image_base);
 
 void efi_shutdown_system(uint32_t shutdown_type);
 

@@ -206,10 +206,11 @@ uint8_t *efi_get_rsdp(void)
     return acpi_rsdp;
 }
 
+#define calc_addr(b, o) (void*)(((uint8_t*)b) + o);
+
 void *efi_get_pe_section(const char *name, void *image_base,
                          uint64_t *size_out)
 {
-#define calc_addr(b, o) (void*)(((uint8_t*)b) + o);
     IMAGE_DOS_HEADER     *dosh;
     IMAGE_NT_HEADERS     *nth;
     IMAGE_FILE_HEADER    *fh;
@@ -238,12 +239,59 @@ void *efi_get_pe_section(const char *name, void *image_base,
     for (i = 0; i < fh->NumberOfSections; i++, sh++) {
         if (!memcmp(name, sh->Name, length)) {
             text = (void*)((uint8_t*)image_base + sh->VirtualAddress);
-            *size_out = sh->Misc.VirtualSize;
+            if (size_out)
+                *size_out = sh->Misc.VirtualSize;
             break;
         }
     }
 
     return text;
+}
+
+typedef struct _IMAGE_EXPORT_DIRECTORY32 {
+    UINT32   Characteristics;
+    UINT32   TimeDateStamp;
+    UINT16   MajorVersion;
+    UINT16   MinorVersion;
+    UINT32   Name;
+    UINT32   Base;
+    UINT32   NumberOfFunctions;
+    UINT32   NumberOfNames;
+    UINT32   AddressOfFunctions;
+    UINT32   AddressOfNames;
+    UINT32   AddressOfNameOrdinals;
+} IMAGE_EXPORT_DIRECTORY32, *PIMAGE_EXPORT_DIRECTORY32;
+
+void *efi_get_pe_export(const char *name, void *image_base)
+{
+    IMAGE_EXPORT_DIRECTORY32 *ed;
+    void *fptr = NULL;
+    uint32_t *fnames, *faddrs;
+    const char *fname;
+    uint64_t faddr;
+    uint32_t i;
+
+    /* Locate the export section and export directory */
+    ed = efi_get_pe_section(".edata", image_base, NULL);
+    if (!ed) {
+        printk("No export section found\n");
+        return NULL;
+    }
+
+    fnames = (uint32_t*)calc_addr(image_base, ed->AddressOfNames);
+    faddrs = (uint32_t*)calc_addr(image_base, ed->AddressOfFunctions);
+
+    for (i = 0; i < ed->NumberOfNames; i++, fnames++, faddrs++) {
+        fname = (const char*)calc_addr(image_base, *fnames);
+        faddr = (uint64_t)calc_addr(image_base, *faddrs);
+
+        if (!strcmp(fname, name)) {
+            fptr = (void*)faddr;
+            break;
+        }
+    }
+
+    return fptr;
 }
 
 void efi_shutdown_system(uint32_t shutdown_type)
