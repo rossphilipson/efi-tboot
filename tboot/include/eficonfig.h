@@ -52,58 +52,48 @@
 # define ITEM_DEFAULT  "default"
 # define ITEM_KERNEL   "kernel"
 
-enum {
-    EFI_CONFIG_TBOOT = 0,
-    EFI_CONFIG_TBOOT_PARSED,
-    EFI_CONFIG_XEN,
-    EFI_CONFIG_XEN_PARSED,
-    EFI_CONFIG_MAX
-};
+typedef enum efi_file_select {
+    EFI_FILE_INVALID = 0,
+    EFI_FILE_TBOOT_CONFIG,
+    EFI_FILE_TBOOT_CONFIG_PARSED,
+    EFI_FILE_XEN_CONFIG,
+    EFI_FILE_XEN_CONFIG_PARSED,
+    EFI_FILE_PLATFORM_SINIT,
+    EFI_FILE_PLATFORM_RACM,
+    EFI_FILE_LCP,
+    EFI_FILE_MEMMAP,
+    EFI_FILE_RTMEM,
+    EFI_FILE_IMAGE,
+    EFI_FILE_IMAGE_TEXT,
+    EFI_FILE_IMAGE_BSS,
+    EFI_FILE_XEN,
+    EFI_FILE_KERNEL,
+    EFI_FILE_RAMDISK,
+    EFI_FILE_UCODE,
+    EFI_FILE_MAX
+} efi_file_select_t;
 
 typedef struct {
     union {
-        char *buffer;
+        uint8_t *base;
         EFI_PHYSICAL_ADDRESS addr;
     } u;
-    uint64_t  size;
+    uint64_t size;
+    uint64_t other;
 } efi_file_t;
 
-wchar_t     g_tboot_dir[EFI_MAX_PATH];
-bool        g_post_ebs;
-const char *g_kernel_cmdline;
-
-/* Locations of runtime offsets */
-void     *g_rtmem_base;
-void     *g_image_base;
-uint64_t  g_image_size;
-void     *g_text_base;
-uint64_t  g_text_size;
-void     *g_bss_base;
-uint64_t  g_bss_size;
-
 void efi_cfg_init(void);
-efi_file_t *efi_get_configs(void);
+efi_file_t *efi_get_file(efi_file_select_t sel);
+const wchar_t *efi_get_tboot_path(void);
+const char *efi_get_kernel_cmdline(void);
 void efi_cfg_pre_parse(efi_file_t *config);
-char *efi_cfg_get_value(int index, const char *section,
+char *efi_cfg_get_value(efi_file_t *config, const char *section,
                         const char *item);
-
 bool efi_split_kernel_line(void);
 bool efi_cfg_copy_tboot_path(const wchar_t *file_path);
 
-const efi_file_t *efi_get_platform_sinit(void);
-const efi_file_t *efi_get_platform_racm(void);
-const efi_file_t *efi_get_lcp(void);
-void efi_store_files(const efi_file_t *platform_sinit,
-                     const efi_file_t *platform_racm,
-                     const efi_file_t *lcp);
 
-const efi_file_t *efi_get_xen(void);
-const efi_file_t *efi_get_kernel(void);
-const efi_file_t *efi_get_ramdisk(void);
-const void *efi_get_memory_map(uint64_t *size_out, uint64_t *size_desc_out);
-uint64_t efi_get_xen_post_launch_cb(void);
-
-void efi_store_xen_info(void *base, uint64_t size);
+bool g_post_ebs;
 bool efi_store_xen_tboot_data(efi_xen_tboot_data_t *xtd);
 
 #endif /* __EFI_CONFIG_H__ */

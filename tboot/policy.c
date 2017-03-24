@@ -268,15 +268,15 @@ static bool unwrap_lcp_policy(void)
         lcp_size = (uint32_t)os_sinit_data->lcp_po_size;
     }
     else {
-        lcp = efi_get_lcp();
-        if ( lcp == NULL )
+        lcp = efi_get_file(EFI_FILE_LCP);
+        if ( lcp->u.base == NULL )
             return false;
-        lcp_base = lcp->u.buffer;
+        lcp_base = lcp->u.base;
         lcp_size = lcp->size;
     }
 
     /* if lcp policy data version is 2+ */
-    if ( memcmp((void *)lcp->u.buffer, LCP_POLICY_DATA_FILE_SIGNATURE,
+    if ( memcmp((void *)lcp->u.base, LCP_POLICY_DATA_FILE_SIGNATURE,
              LCP_FILE_SIG_LENGTH) == 0 ) {
         lcp_policy_data_t *poldata = (lcp_policy_data_t *)lcp_base;
         lcp_policy_list_t *pollist = &poldata->policy_lists[0];

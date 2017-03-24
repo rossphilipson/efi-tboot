@@ -100,7 +100,8 @@
 #define __data     __attribute__ ((__section__ (".data#")))
 #define __text     __attribute__ ((__section__ (".text#")))
 
-#define __packed   __attribute__ ((packed))
+#define __packed        __attribute__ ((packed))
+#define __maybe_unused  __attribute__ ((unused))
 
 /* tboot log level */
 #ifdef NO_TBOOT_LOGLVL

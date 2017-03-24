@@ -76,29 +76,31 @@
 __data long s3_flag = 0;
 
 #ifdef EFI_DEBUG
-static void efi_debug_print_d(efi_xen_tboot_data_t *d)
+static void efi_debug_print_files(void)
 {
-    const efi_file_t *xen_file = efi_get_xen();
+    efi_file_t *rtmem = efi_get_file(EFI_FILE_RTMEM);
+    efi_file_t *image = efi_get_file(EFI_FILE_IMAGE);
+    efi_file_t *text = efi_get_file(EFI_FILE_IMAGE_TEXT);
+    efi_file_t *bss = efi_get_file(EFI_FILE_IMAGE_BSS);
 
-    printk("Xen TBOOT shared data:\n");
-    printk("  xen              = %p\n", xen_file->u.buffer);
-    printk("  xen_size         = 0x%llx\n", xen_file->size);
-    printk("  kernel           = %p\n", d->kernel);
-    printk("  kernel_size      = 0x%llx\n", d->kernel_size);
-    printk("  ramdisk          = %p\n", d->ramdisk);
-    printk("  ramdisk_size     = 0x%llx\n", d->ramdisk_size);
-    printk("  memory_map       = %p\n", d->memory_map);
-    printk("  memory_map_size  = 0x%llx\n", d->memory_map_size);
-    printk("  memory_desc_size = 0x%llx\n", d->memory_desc_size);
-    printk("  _tboot_shared    = %p\n", &_tboot_shared);
-    printk("  shared size      = 0x%x\n", sizeof(tboot_shared_t));
+    printk("EFI files:\n");
+    printk("  rtmem base  = %p\n", rtmem->u.base);
+    printk("  rtmem sze   = %x\n", (uint32_t)rtmem->size);
+    printk("  image base  = %p\n", image->u.base);
+    printk("  image sze   = %x\n", (uint32_t)image->size);
+    printk("  text base   = %p\n", text->u.base);
+    printk("  text sze    = %x\n", (uint32_t)text->size);
+    printk("  bss base    = %p\n", bss->u.base);
+    printk("  bss sze     = %x\n", (uint32_t)bss->size);
 }
 #else
-#define efi_debug_print_d(d)
+#define efi_debug_print_files()
 #endif
 
 static void store_section_sizes(void)
 {
+    efi_file_t *text = efi_get_file(EFI_FILE_IMAGE_TEXT);
+    efi_file_t *bss = efi_get_file(EFI_FILE_IMAGE_BSS);
     uint64_t mle_start_ref;
     uint64_t mle_size_ref;
     uint64_t bss_start_ref;
@@ -117,21 +119,21 @@ static void store_section_sizes(void)
     lea_reference(_bss_start, bss_start_ref);
     lea_reference(_bss_size, bss_size_ref);
 
-    if ((void*)mle_start_ref != g_text_base) {
-        printk(TBOOT_ERR"_mle_start != g_text_base\n");
+    if ((void*)mle_start_ref != text->u.base) {
+        printk(TBOOT_ERR"_mle_start != text base\n");
         apply_policy(TB_ERR_FATAL);
     }
 
-    *((uint64_t*)mle_size_ref) = g_text_size;
+    *((uint64_t*)mle_size_ref) = text->size;
     printk(TBOOT_INFO"_mle_start: 0x%llx _mle_size: 0x%llx\n",
            mle_start_ref, *((uint64_t*)mle_size_ref));
 
-    if ((void*)bss_start_ref != g_bss_base) {
-        printk(TBOOT_ERR"_bss_start != g_bss_base\n");
+    if ((void*)bss_start_ref != bss->u.base) {
+        printk(TBOOT_ERR"_bss_start != bss base\n");
         apply_policy(TB_ERR_FATAL);
     }
 
-    *((uint64_t*)bss_size_ref) = g_bss_size;
+    *((uint64_t*)bss_size_ref) = bss->size;
     printk(TBOOT_INFO"_bss_start: 0x%llx _bss_size: 0x%llx\n",
            bss_start_ref, *((uint64_t*)bss_size_ref));
 }
@@ -196,9 +198,10 @@ void check_racm_result(void)
 void begin_initial_launch(void)
 {
     const char *cmdline;
-    const efi_file_t *sinit_file;
     acm_hdr_t *sinit;
     tb_error_t err;
+    efi_file_t *cfg = efi_get_file(EFI_FILE_TBOOT_CONFIG_PARSED);
+    const efi_file_t *sinit_file;
 
     /* always load cmdline defaults */
     tboot_parse_cmdline(true);
@@ -207,8 +210,7 @@ void begin_initial_launch(void)
      * (so that it will be measured); buffer must be 0 -filled */
     if ( !is_launched() && !s3_flag ) {
         memset(g_cmdline, '\0', sizeof(g_cmdline));
-        cmdline = efi_cfg_get_value(EFI_CONFIG_TBOOT_PARSED,
-                                    SECTION_TBOOT, ITEM_OPTIONS);
+        cmdline = efi_cfg_get_value(cfg, SECTION_TBOOT, ITEM_OPTIONS);
         if (cmdline)
             strncpy(g_cmdline, cmdline, sizeof(g_cmdline)-1);
     }
@@ -230,6 +232,8 @@ void begin_initial_launch(void)
 
     /* DEBUG */
     print_system_values();
+
+    efi_debug_print_files();
 
     /* if telled to check revocation acm result, go with simplified path */
     if ( get_tboot_call_racm_check() )
@@ -264,11 +268,11 @@ void begin_initial_launch(void)
     /* has already been launched */
 
     if (!g_sinit) {
-        sinit_file = efi_get_platform_sinit();
-        if (sinit_file == NULL) 
+        sinit_file = efi_get_file(EFI_FILE_PLATFORM_SINIT);
+        if (sinit_file->u.base == NULL)
             apply_policy(TB_ERR_SINIT_NOT_PRESENT);
         /* check if it is newer than BIOS provided version, then copy it to BIOS reserved region */
-        g_sinit = copy_sinit((const acm_hdr_t*)sinit_file->u.buffer);
+        g_sinit = copy_sinit((const acm_hdr_t*)sinit_file->u.base);
         if (g_sinit == NULL) 
             apply_policy(TB_ERR_SINIT_NOT_PRESENT);
         if (!verify_acmod(g_sinit)) 
@@ -345,8 +349,6 @@ void begin_launch(efi_xen_tboot_data_t *xtd)
 
     /* DEBUG */
     print_system_values();
-
-    efi_debug_print_d(xtd);
 
     if ( !efi_scan_memory_map() )
         apply_policy(TB_ERR_FATAL);

@@ -183,7 +183,7 @@ wchar_t *atow_cat(const wchar_t *base, const char *tail)
         return NULL;
 
     memset(dst, 0, size);
-    memcpy(dst, g_tboot_dir, wcount*sizeof(wchar_t));
+    memcpy(dst, base, wcount*sizeof(wchar_t));
     atow((dst + wcount - 1), tail, scount);
 
     return dst;

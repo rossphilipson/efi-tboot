@@ -49,24 +49,17 @@
 #include <tb_error.h>
 #include <tboot.h>
 
-static EFI_HANDLE       g_image_handle;
-static EFI_HANDLE       g_device_handle;
-static EFI_DEVICE_PATH *g_device_path;
-static void            *g_init_base;  /* before reloc */
-       void            *g_image_base; /* after reloc */
-       void            *g_rtmem_base; /* base of TBOOT runtime memory */
-       uint64_t         g_image_size;
-       void            *g_text_base;
-       uint64_t         g_text_size;
-       void            *g_bss_base;
-       uint64_t         g_bss_size;
+static EFI_HANDLE       parent_image_handle;
+static EFI_HANDLE       parent_device_handle;
+static EFI_DEVICE_PATH *device_path;
+static void            *init_base; /* before reloc */
+static uint64_t         init_size; /* original size */
 
-static efi_file_t            *g_configs;
-static EFI_FILE_IO_INTERFACE *g_file_system = NULL;
+static EFI_FILE_IO_INTERFACE *efi_file_system = NULL;
 
 /* Store raw config files in MLE so they can be measured */
-static __text uint8_t g_tboot_config_file[EFI_MAX_CONFIG_FILE];
-static __text uint8_t g_xen_config_file[EFI_MAX_CONFIG_FILE];
+static __text uint8_t tboot_config_file[EFI_MAX_CONFIG_FILE];
+static __text uint8_t xen_config_file[EFI_MAX_CONFIG_FILE];
 
 #ifdef EFI_DEBUG
 static void efi_debug_pause(void)
@@ -78,18 +71,16 @@ static void efi_debug_pause(void)
     while ((status = ST->ConIn->ReadKeyStroke(ST->ConIn, &key)) == EFI_NOT_READY);
 }
 
-static void efi_debug_print_g(void)
+static void efi_debug_print_i(void)
 {
-    printk("EFI global:\n");
-    printk("  g_image_handle  = %p\n", g_image_handle);
-    printk("  g_device_handle = %p\n", g_device_handle);
-    printk("  g_device_path   = %p\n", g_device_path);
-    printk("  g_init_base     = %p\n", g_init_base);
-    printk("  g_image_base    = %p\n", g_image_base);
-    printk("  g_rtmem_base    = %p\n", g_rtmem_base);
-    printk("  g_image_size    = %x\n", (uint32_t)g_image_size);
+    printk("EFI init:\n");
+    printk("  parent_image_handle  = %p\n", parent_image_handle);
+    printk("  parent_device_handle = %p\n", parent_device_handle);
+    printk("  device_path          = %p\n", device_path);
+    printk("  init_base            = %p\n", init_base);
+    printk("  init_size            = %x\n", (uint32_t)init_size);
 
-    /*efi_debug_pause();*/
+    efi_debug_pause();
 }
 
 static void efi_begin_launch(efi_xen_tboot_data_t *xtd);
@@ -117,7 +108,7 @@ static void efi_debug_print_w(const char *pfx, const wchar_t *wstr)
 
 #else
 #define efi_debug_pause()
-#define efi_debug_print_g()
+#define efi_debug_print_i()
 #define efi_debug_print_v(s)
 #define efi_debug_print_w(p, w)
 #define efi_debug_print_s(p, s)
@@ -130,7 +121,7 @@ static EFI_STATUS efi_start_next_image(const wchar_t *path)
     EFI_HANDLE        image_handle = NULL;
     EFI_LOADED_IMAGE *loaded_image;
 
-    dev_path = efi_get_device_path(path, g_device_handle);
+    dev_path = efi_get_device_path(path, parent_device_handle);
     if (dev_path == NULL) {
         char *p = wtoa_alloc(path);
         printk("Failed to get device path for file %s\n", p);
@@ -139,7 +130,7 @@ static EFI_STATUS efi_start_next_image(const wchar_t *path)
     }
 
     status = BS->LoadImage(FALSE,
-                           g_image_handle,
+                           parent_image_handle,
                            dev_path,
                            NULL,
                            0,
@@ -156,7 +147,6 @@ static EFI_STATUS efi_start_next_image(const wchar_t *path)
         printk("Failed to get loaded image info - status: %d\n", status);
         goto out;
     }
-    efi_store_xen_info(loaded_image->ImageBase, loaded_image->ImageSize);
 
     status = BS->StartImage(image_handle, NULL, NULL);
     if (EFI_ERROR(status))
@@ -171,9 +161,9 @@ void efi_launch_kernel(void)
 {
     EFI_STATUS  status;
     wchar_t    *file_path;
+    efi_file_t *cfg = efi_get_file(EFI_FILE_TBOOT_CONFIG_PARSED);
 
-    file_path = atow_alloc(efi_cfg_get_value(EFI_CONFIG_TBOOT_PARSED,
-                                             SECTION_TBOOT, ITEM_XENPATH));
+    file_path = atow_alloc(efi_cfg_get_value(cfg, SECTION_TBOOT, ITEM_XENPATH));
     if (!file_path) {
         printk("Failed to allocate buffer for Xen file\n");
         status = EFI_OUT_OF_RESOURCES;
@@ -196,12 +186,13 @@ static EFI_STATUS efi_setup_tboot_xen_var(void)
 {
     EFI_STATUS          status = EFI_SUCCESS;
     efi_tboot_xen_var_t var;
+    efi_file_t *cfg = efi_get_file(EFI_FILE_XEN_CONFIG);
 
     memset(&var, 0, sizeof(efi_tboot_xen_var_t));
     var.revision = EFI_TBOOT_XEN_REV;
     var.begin_launch_cb = (uint64_t)efi_begin_launch;
-    var.xen_config = g_configs[EFI_CONFIG_XEN].u.buffer;
-    var.xen_config_size = g_configs[EFI_CONFIG_XEN].size;
+    var.xen_config = cfg->u.base;
+    var.xen_config_size = cfg->size;
 
     status = RT->SetVariable(EFI_TBOOT_XEN_NAME,
                              &TbootXenGuid,
@@ -222,7 +213,7 @@ static bool efi_is_platform_sinit_module(wchar_t *file_path,
     EFI_STATUS status;
 
     /* Read the TBOOT config into RT memory and store */
-    status = efi_read_file(g_file_system,
+    status = efi_read_file(efi_file_system,
                            file_path,
                            EfiRuntimeServicesData,
                            &file_out->size,
@@ -232,8 +223,8 @@ static bool efi_is_platform_sinit_module(wchar_t *file_path,
         return false;
     }
 
-    if (is_sinit_acmod(file_out->u.buffer, file_out->size, true) &&
-        does_acmod_match_platform((acm_hdr_t*)file_out->u.buffer)) {
+    if (is_sinit_acmod(file_out->u.base, file_out->size, true) &&
+        does_acmod_match_platform((acm_hdr_t*)file_out->u.base)) {
         printk(TBOOT_DETA"SINIT matches platform\n");
         return true;
     }
@@ -253,19 +244,19 @@ static EFI_STATUS efi_load_core_files(void)
     const char *value;
     wchar_t    *file_path;
     uint32_t    size;
-    efi_file_t  sinit_file = {0, 0};
+    efi_file_t *sinit_file = efi_get_file(EFI_FILE_PLATFORM_SINIT);
+    efi_file_t *cfg = efi_get_file(EFI_FILE_TBOOT_CONFIG_PARSED);
 
     /* TODO we don't have any RACMs right now so kick the can down the road... */
     /* TODO we don't use an LCP so kick the can down the road... */
 
     for (key = 0; ; key++) {
         snprintf(keystr, 16, "%d", key);
-        value = efi_cfg_get_value(EFI_CONFIG_TBOOT_PARSED,
-                                  SECTION_ACM, keystr);
+        value = efi_cfg_get_value(cfg, SECTION_ACM, keystr);
         if (!value)
             break;
 
-        file_path = atow_cat(g_tboot_dir, value);
+        file_path = atow_cat(efi_get_tboot_path(), value);
         if (!file_path) {
             printk("Failed to allocate buffer for ACM file name\n");
             status = EFI_OUT_OF_RESOURCES;
@@ -275,7 +266,7 @@ static EFI_STATUS efi_load_core_files(void)
         efi_debug_print_w("ACM:", file_path);
 
         /* Found one */
-        if (efi_is_platform_sinit_module(file_path, &sinit_file)) {
+        if (efi_is_platform_sinit_module(file_path, sinit_file)) {
             BS->FreePool(file_path);
             break;
         }
@@ -285,13 +276,11 @@ static EFI_STATUS efi_load_core_files(void)
         /* Errors not fatal but the config likely includes missing files */
     }
 
-    if (!sinit_file.u.buffer) {
+    if (!sinit_file->u.base) {
         printk(TBOOT_ERR"no SINIT AC module found\n");
         return EFI_INVALID_PARAMETER;
     }
 
-    /* Set the files we found */
-    efi_store_files(&sinit_file, NULL, NULL);
 out:
     return status;
 }
@@ -316,11 +305,12 @@ static void efi_form_config_path(wchar_t *path)
 
 static EFI_STATUS efi_load_configs(void)
 {
-    EFI_STATUS             status;
-    wchar_t               *file_path = NULL;
-    EFI_PHYSICAL_ADDRESS   addr = TBOOT_MAX_IMAGE_MEM;
-    void                  *buffer = NULL;
-    uint64_t               size;
+    EFI_STATUS            status;
+    wchar_t              *file_path = NULL;
+    EFI_PHYSICAL_ADDRESS  addr = TBOOT_MAX_IMAGE_MEM;
+    void                 *buffer = NULL;
+    uint64_t              size;
+    efi_file_t           *cfg;
 
     /* Get file path for TBOOT image and config */
     status = BS->AllocatePool(EfiLoaderData,
@@ -331,7 +321,7 @@ static EFI_STATUS efi_load_configs(void)
         return status;
     }
 
-    status = efi_device_path_to_text(g_device_path,
+    status = efi_device_path_to_text(device_path,
                                      file_path,
                                      EFI_MAX_PATH);
     if (EFI_ERROR(status)) {
@@ -349,7 +339,7 @@ static EFI_STATUS efi_load_configs(void)
     efi_form_config_path(file_path);
  
     /* Read the TBOOT config into RT memory and store */
-    status = efi_read_file(g_file_system,
+    status = efi_read_file(efi_file_system,
                            file_path,
                            EfiRuntimeServicesData,
                            &size,
@@ -366,19 +356,20 @@ static EFI_STATUS efi_load_configs(void)
     }
 
     /* Make a copy of the raw TBOOT config in the MLE */
-    memcpy(g_tboot_config_file, (void*)addr, size);
-    g_configs[EFI_CONFIG_TBOOT].u.buffer = g_tboot_config_file;
-    g_configs[EFI_CONFIG_TBOOT].size = size;
+    memcpy(tboot_config_file, (void*)addr, size);
+    cfg = efi_get_file(EFI_FILE_TBOOT_CONFIG);
+    cfg->u.base = tboot_config_file;
+    cfg->size = size;
 
     /* Parse original */
-    g_configs[EFI_CONFIG_TBOOT_PARSED].u.addr = addr;
-    g_configs[EFI_CONFIG_TBOOT_PARSED].size = size;
-    efi_cfg_pre_parse(&g_configs[EFI_CONFIG_TBOOT_PARSED]);
+    cfg = efi_get_file(EFI_FILE_TBOOT_CONFIG_PARSED);
+    cfg->u.addr = addr;
+    cfg->size = size;
+    efi_cfg_pre_parse(cfg);
     BS->FreePool(file_path);
 
     /* Get file path for Xen image and config */
-    file_path = atow_alloc(efi_cfg_get_value(EFI_CONFIG_TBOOT_PARSED,
-                                             SECTION_TBOOT, ITEM_XENPATH));
+    file_path = atow_alloc(efi_cfg_get_value(cfg, SECTION_TBOOT, ITEM_XENPATH));
     if (!file_path) {
         printk("Failed to allocate buffer for Xen config file\n");
         status = EFI_OUT_OF_RESOURCES;
@@ -388,7 +379,7 @@ static EFI_STATUS efi_load_configs(void)
     efi_form_config_path(file_path);
 
     /* Read the Xen config (non-modified) into RT memory and store */
-    status = efi_read_file(g_file_system,
+    status = efi_read_file(efi_file_system,
                            file_path,
                            EfiRuntimeServicesData,
                            &size,
@@ -405,14 +396,16 @@ static EFI_STATUS efi_load_configs(void)
     }
 
     /* Make a copy of the raw Xen config in the MLE */
-    memcpy(g_xen_config_file, (void*)addr, size);
-    g_configs[EFI_CONFIG_XEN].u.buffer = g_xen_config_file;
-    g_configs[EFI_CONFIG_XEN].size = size;
+    memcpy(xen_config_file, (void*)addr, size);
+    cfg = efi_get_file(EFI_FILE_XEN_CONFIG);
+    cfg->u.base = xen_config_file;
+    cfg->size = size;
 
     /* Parse original */
-    g_configs[EFI_CONFIG_XEN_PARSED].u.addr = addr;
-    g_configs[EFI_CONFIG_XEN_PARSED].size = size;
-    efi_cfg_pre_parse(&g_configs[EFI_CONFIG_XEN_PARSED]);
+    cfg = efi_get_file(EFI_FILE_XEN_CONFIG_PARSED);
+    cfg->u.addr = addr;
+    cfg->size = size;
+    efi_cfg_pre_parse(cfg);
     BS->FreePool(file_path);
 
     /* Locate and split off the kernel cmdline */
@@ -421,18 +414,17 @@ static EFI_STATUS efi_load_configs(void)
         status = EFI_INVALID_PARAMETER;
         goto err;
     }
-    efi_debug_print_s("KERNEL CMDLINE:", g_kernel_cmdline);
+    efi_debug_print_s("KERNEL CMDLINE:", efi_get_kernel_cmdline());
 
     return EFI_SUCCESS;
 
 err:
-    if (g_configs[EFI_CONFIG_XEN].u.buffer)
-        BS->FreePages(g_configs[EFI_CONFIG_XEN].u.addr,
-                      PFN_UP(g_configs[EFI_CONFIG_XEN].size));
-    if (g_configs[EFI_CONFIG_TBOOT].u.buffer)
-        BS->FreePages(g_configs[EFI_CONFIG_TBOOT].u.addr,
-                      PFN_UP(g_configs[EFI_CONFIG_TBOOT].size));
-
+    cfg = efi_get_file(EFI_FILE_XEN_CONFIG);
+    if (cfg->u.base)
+        BS->FreePages(cfg->u.addr, PFN_UP(cfg->size));
+    cfg = efi_get_file(EFI_FILE_TBOOT_CONFIG);
+    if (cfg->u.base)
+        BS->FreePages(cfg->u.addr, PFN_UP(cfg->size));
     if (file_path)
         BS->FreePool(file_path);
 
@@ -442,16 +434,18 @@ err:
 EFI_STATUS efi_start(EFI_HANDLE ImageHandle,
                      EFI_SYSTEM_TABLE *SystemTable)
 {
+    efi_file_t *image = efi_get_file(EFI_FILE_IMAGE);
+    efi_file_t *text = efi_get_file(EFI_FILE_IMAGE_TEXT);
+    efi_file_t *bss = efi_get_file(EFI_FILE_IMAGE_BSS);
     EFI_STATUS status;
 
     printk("TBOOT START Entry Point: %p\n", efi_start);
-    efi_debug_print_g();
 
     /* Open the file system for the boot partition once up front */
-    status = BS->OpenProtocol(g_device_handle, 
+    status = BS->OpenProtocol(parent_device_handle,
                               &FileSystemProtocol,
-                              (void**)&g_file_system,
-                              g_image_handle,
+                              (void**)&efi_file_system,
+                              parent_image_handle,
                               NULL,
                               EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL);
     if (EFI_ERROR(status)) {
@@ -459,17 +453,14 @@ EFI_STATUS efi_start(EFI_HANDLE ImageHandle,
         goto out;
     }
 
-    efi_cfg_init();
-    g_configs = efi_get_configs();
-
     /* Locate the .text section and length */
-    g_text_base = efi_get_pe_section(".text", g_image_base,
-                                     &g_text_size);
-    if (g_text_base) {
+    text->u.base = efi_get_pe_section(".text", image->u.base,
+                                     &text->size);
+    if (text->u.base) {
         printk("Located .text section: %p size: %llx\n",
-               g_text_base, g_text_size);
+               text->u.base, text->size);
         /* Sanity check the location of the .text section in the image */
-        if ((g_text_base - g_image_base) != PAGE_SIZE) {
+        if ((text->u.base - image->u.base) != PAGE_SIZE) {
             printk("The .text offset must be at 1 page into TBOOT image!\n");
             goto out;
         }
@@ -481,11 +472,11 @@ EFI_STATUS efi_start(EFI_HANDLE ImageHandle,
     }
 
     /* Locate the .bss section and length */
-    g_bss_base = efi_get_pe_section(".bss", g_image_base,
-                                     &g_bss_size);
-    if (g_bss_base) {
+    bss->u.base = efi_get_pe_section(".bss", image->u.base,
+                                     &bss->size);
+    if (bss->u.base) {
         printk("Located .bss section: %p size: %llx\n",
-               g_bss_base, g_bss_size);
+               bss->u.base, bss->size);
     }
     else {
         printk("Failed to locate .text section\n");
@@ -532,30 +523,30 @@ static EFI_STATUS efi_reloc_and_call(void)
     uint64_t             size;
     EFI_PHYSICAL_ADDRESS addr = TBOOT_MAX_IMAGE_MEM;
     uint64_t             efi_start_ptr;
+    efi_file_t           *rtmem, *image;
 
-    /*
-     * TODO we may have to pick and force an address since right now we are at
-     * the mercy of EFI picking a runtime service code range. If this ends up
-     * outside the PMRs due to the crazy min_ram stuff then pain and misery
-     * will ensue.
-     */
+    rtmem = efi_get_file(EFI_FILE_RTMEM);
+    image = efi_get_file(EFI_FILE_IMAGE);
+
+    image->size = init_size;
 
     status = BS->AllocatePages(AllocateMaxAddress,
                                EfiRuntimeServicesCode,
-                               PFN_UP(g_image_size) + TBOOT_RTMEM_COUNT,
+                               PFN_UP(image->size) + TBOOT_RTMEM_COUNT,
                                &addr);
     if (EFI_ERROR(status))
         return status;
 
-    g_rtmem_base = (void*)addr;
-    g_image_base = (void*)(addr + TBOOT_RTMEM_SIZE);
-    memset(g_rtmem_base, 0, g_image_size + TBOOT_RTMEM_SIZE);
+    rtmem->u.addr = addr;
+    image->u.addr = addr + TBOOT_RTMEM_SIZE;
+    rtmem->size = image->size + TBOOT_RTMEM_SIZE;
+    memset(rtmem->u.base, 0, rtmem->size);
 
     /* Copy me to new location */
-    memcpy(g_image_base, g_init_base, g_image_size);
+    memcpy(image->u.base, init_base, image->size);
 
-    efi_start_ptr = (uint64_t)g_image_base +
-        ((uint64_t)efi_start - (uint64_t)g_init_base);
+    efi_start_ptr = (uint64_t)image->u.base +
+        ((uint64_t)efi_start - (uint64_t)init_base);
 
     /* End of the line */
     __asm__ __volatile__ (
@@ -563,7 +554,7 @@ static EFI_STATUS efi_reloc_and_call(void)
                    "movq %1, %%rcx\n\t"
                    "call *%%rax\n\t"
                    :
-                   : "g" (ST), "g" (g_image_handle), "a" (efi_start_ptr));
+                   : "g" (ST), "g" (parent_image_handle), "a" (efi_start_ptr));
 
     return EFI_LOAD_ERROR; /* SNO! */
 }
@@ -583,24 +574,26 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle,
     printk_init(INIT_EARLY_EFI);
     printk("TBOOT EFI Entry Point: %p\n", efi_main);
 
+    efi_cfg_init();
+
     status = BS->HandleProtocol(ImageHandle,
                                 &LoadedImageProtocol,
                                 (VOID*)&loaded_image);
 
     if (!EFI_ERROR(status)) {
         /* Device we were loaded from, EFI partition */
-        g_device_handle = loaded_image->DeviceHandle;
-        g_device_path = loaded_image->FilePath;
-        g_init_base = loaded_image->ImageBase;
-        g_image_size = loaded_image->ImageSize;
-        g_image_handle = ImageHandle;
+        parent_device_handle = loaded_image->DeviceHandle;
+        device_path = loaded_image->FilePath;
+        init_base = loaded_image->ImageBase;
+        init_size = loaded_image->ImageSize;
+        parent_image_handle = ImageHandle;
     }
     else {
         printk("TBOOT FATAL! Cannot get loaded image information\n");
         ST->RuntimeServices->ResetSystem(EfiResetShutdown, status, 0, NULL);
     }
 
-    efi_debug_print_g();
+    efi_debug_print_i();
 
     /* Relocate this image and call, never return */
     status = efi_reloc_and_call();

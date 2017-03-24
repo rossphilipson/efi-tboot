@@ -112,13 +112,17 @@ static __data heap_event_log_ptr_elt2_t *g_elog_2 = NULL;
 
 static void print_file_info(void)
 {
+    efi_file_t *rtmem = efi_get_file(EFI_FILE_RTMEM);
+    efi_file_t *image = efi_get_file(EFI_FILE_IMAGE);
+    efi_file_t *text = efi_get_file(EFI_FILE_IMAGE_TEXT);
+
     printk(TBOOT_DETA"file addresses:\n");
-    printk(TBOOT_DETA"\t RTMEM start=%p\n", g_rtmem_base);
-    printk(TBOOT_DETA"\t RTMEM end=%p\n", g_rtmem_base + g_image_size + TBOOT_RTMEM_SIZE);
-    printk(TBOOT_DETA"\t IMAGE start=%p\n", g_image_base);
-    printk(TBOOT_DETA"\t IMAGE end=%p\n", g_image_base + g_image_size);
-    printk(TBOOT_DETA"\t MLE start=%p\n", g_text_base);
-    printk(TBOOT_DETA"\t MLE end=%p\n", g_text_base + g_text_size);
+    printk(TBOOT_DETA"\t RTMEM start=%p\n", rtmem->u.base);
+    printk(TBOOT_DETA"\t RTMEM end=%p\n", rtmem->u.base + rtmem->size);
+    printk(TBOOT_DETA"\t IMAGE start=%p\n", image->u.base);
+    printk(TBOOT_DETA"\t IMAGE end=%p\n", image->u.base + image->size);
+    printk(TBOOT_DETA"\t MLE start=%p\n", text->u.base);
+    printk(TBOOT_DETA"\t MLE end=%p\n", text->u.base + text->size);
     /*printk(TBOOT_DETA"\t &_post_launch_entry=%p\n", &_post_launch_entry);
     printk(TBOOT_DETA"\t &_txt_wakeup=%p\n", &_txt_wakeup);*/
     printk(TBOOT_DETA"\t &g_mle_hdr=%p\n", &g_mle_hdr);
@@ -140,8 +144,7 @@ static void print_mle_hdr(const mle_hdr_t *mle_hdr)
     print_txt_caps("\t ", mle_hdr->capabilities);
 }
 
-#if 0
-static void print_mle_pagetable(void)
+static void __maybe_unused print_mle_pagetable(void)
 {
     uint32_t mle_size, mle_off;
     void *pg_dir_ptr_tab, *pg_dir, *pg_tab;
@@ -166,25 +169,27 @@ static void print_mle_pagetable(void)
     for (i = 0; mle_off < mle_size; i++, pte++, mle_off += PAGE_SIZE)
         printk("    pte[%d]=%016llx\n", i, *pte);
 }
-#endif
  
 void txt_init_mle_header(void)
 {
+    efi_file_t *rtmem = efi_get_file(EFI_FILE_RTMEM);
+    efi_file_t *image = efi_get_file(EFI_FILE_IMAGE);
+    efi_file_t *text = efi_get_file(EFI_FILE_IMAGE_TEXT);
     uint64_t ple;
 
     lea_reference(post_launch_entry, ple);
 
-    g_mle_hdr.entry_point = (uint32_t)(ple - (uint64_t)g_text_base);
-    g_mle_hdr.mle_start_off = (uint32_t)((uint64_t)g_text_base -
-                                         (uint64_t)g_rtmem_base);
-    g_mle_hdr.mle_end_off   = (uint32_t)((uint64_t)g_text_base +
-                                         (uint64_t)g_text_size -
-                                         (uint64_t)g_rtmem_base);
+    g_mle_hdr.entry_point = (uint32_t)(ple - (uint64_t)text->u.base);
+    g_mle_hdr.mle_start_off = (uint32_t)((uint64_t)text->u.base -
+                                         (uint64_t)rtmem->u.base);
+    g_mle_hdr.mle_end_off   = (uint32_t)((uint64_t)text->u.base +
+                                         (uint64_t)text->size -
+                                         (uint64_t)rtmem->u.base);
     g_mle_hdr.cmdline_start_off = (uint32_t)((uint64_t)g_cmdline -
-                                             (uint64_t)g_rtmem_base);
+                                             (uint64_t)text->u.base);
     g_mle_hdr.cmdline_end_off   = (uint32_t)((uint64_t)g_cmdline +
                                              CMDLINE_SIZE - 1 -
-                                             (uint64_t)g_rtmem_base);
+                                             (uint64_t)text->u.base);
     print_mle_hdr(&g_mle_hdr);
 }
 
@@ -200,6 +205,7 @@ void txt_init_mle_header(void)
 
 bool txt_build_mle_pagetable(void)
 {
+    efi_file_t *rtmem = efi_get_file(EFI_FILE_RTMEM);
     uint32_t mle_start, mle_size;
     void *ptab_base;
     uint32_t ptab_size, mle_off;
@@ -207,11 +213,11 @@ bool txt_build_mle_pagetable(void)
     uint64_t *pte;
 
     /* page tables start at the phys addr of the MLE base and cover MLE */
-    mle_start = g_mle_hdr.mle_start_off + (uint32_t)(uint64_t)g_rtmem_base;
+    mle_start = g_mle_hdr.mle_start_off + (uint32_t)(uint64_t)rtmem->u.base;
     mle_size = g_mle_hdr.mle_end_off - g_mle_hdr.mle_start_off;
 
     /* place PTs in 3 page before the TBOOT image */
-    g_mle_pt = g_rtmem_base + TBOOT_PLEPT_SIZE;
+    g_mle_pt = rtmem->u.base + TBOOT_PLEPT_SIZE;
 
     printk(TBOOT_DETA"MLE start=0x%x, end=0x%x, size=0x%x\n",
            mle_start, mle_start+mle_size, mle_size);
@@ -350,6 +356,7 @@ static void init_os_sinit_ext_data(heap_ext_data_element_t* elts)
  */
 static txt_heap_t *init_txt_heap(void *ptab_base, acm_hdr_t *sinit)
 {
+    efi_file_t *text = efi_get_file(EFI_FILE_IMAGE_TEXT);
     txt_heap_t *txt_heap;
     txt_caps_t sinit_caps;
     txt_caps_t caps_mask = { 0 };
@@ -399,7 +406,7 @@ static txt_heap_t *init_txt_heap(void *ptab_base, acm_hdr_t *sinit)
     os_sinit_data->mle_ptab = (uint64_t)ptab_base;
     os_sinit_data->mle_size = g_mle_hdr.mle_end_off - g_mle_hdr.mle_start_off;
     /* this is linear addr (offset from MLE base) of mle header */
-    os_sinit_data->mle_hdr_base = (uint64_t)&g_mle_hdr - (uint64_t)g_text_base;
+    os_sinit_data->mle_hdr_base = (uint64_t)&g_mle_hdr - (uint64_t)text->u.base;
 
     /* VT-d PMRs */
     if ( !efi_get_ram_ranges(&min_lo_ram, &max_lo_ram, &min_hi_ram, &max_hi_ram) )
@@ -409,15 +416,15 @@ static txt_heap_t *init_txt_heap(void *ptab_base, acm_hdr_t *sinit)
                  max_hi_ram);
 
     /* LCP owner policy data */
-    lcp_file = efi_get_lcp();
-    if (lcp_file) {
+    lcp_file = efi_get_file(EFI_FILE_LCP);
+    if (lcp_file->u.base) {
         /* copy to heap */
         if ( lcp_file->size > sizeof(os_mle_data->lcp_po_data) ) {
             printk(TBOOT_ERR"LCP owner policy data file is too large (%u)\n",
                    lcp_file->size);
             return NULL;
         }
-        memcpy(os_mle_data->lcp_po_data, lcp_file->u.buffer, lcp_file->size);
+        memcpy(os_mle_data->lcp_po_data, lcp_file->u.base, lcp_file->size);
         os_sinit_data->lcp_po_base = (unsigned long long)&os_mle_data->lcp_po_data;
         os_sinit_data->lcp_po_size = lcp_file->size;
     }

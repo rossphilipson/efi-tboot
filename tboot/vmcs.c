@@ -147,10 +147,11 @@ static void init_vmcs_config(void)
 static void build_ap_pagetable(void)
 {
 #define PTE_FLAGS   0xe3 /* PRESENT+RW+A+D+4MB */
+    efi_file_t *image = efi_get_file(EFI_FILE_IMAGE);
     uint64_t pt_entry = PTE_FLAGS;
     uint64_t *pte = (uint64_t*)idle_pg_table_ref;
 
-    while ( pt_entry <= (uint64_t)(g_image_base + g_image_size) + PTE_FLAGS ) {
+    while ( pt_entry <= (uint64_t)(image->u.base + image->size) + PTE_FLAGS ) {
         *pte = pt_entry;
         /* Incriments 4MB page at a time */ 
         pt_entry += 1 << FOURMB_PAGE_SHIFT;
