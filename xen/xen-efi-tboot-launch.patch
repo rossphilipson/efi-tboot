@@ -97,11 +97,74 @@ Index: xen-4.7.1/xen/arch/x86/efi/Makefile
 ===================================================================
 --- xen-4.7.1.orig/xen/arch/x86/efi/Makefile
 +++ xen-4.7.1/xen/arch/x86/efi/Makefile
-@@ -9,6 +9,6 @@ efi := $(if $(efi),$(shell $(CC) $(filte
+@@ -7,8 +7,8 @@ create = test -e $(1) || touch -t 199901
+ efi := y$(shell rm -f disabled)
+ efi := $(if $(efi),$(shell $(CC) $(filter-out $(CFLAGS-y) .%.d,$(CFLAGS)) -c check.c 2>disabled && echo y))
  efi := $(if $(efi),$(shell $(LD_EFI) -mi386pep --subsystem=10 -o check.efi check.o 2>disabled && echo y))
- efi := $(if $(efi),$(shell rm disabled)y,$(shell $(call create,boot.init.o); $(call create,runtime.o)))
+-efi := $(if $(efi),$(shell rm disabled)y,$(shell $(call create,boot.init.o); $(call create,runtime.o)))
++efi := $(if $(efi),$(shell rm disabled)y,$(shell $(call create,boot.init.o); $(call create,mlboot.init.o); $(call create,runtime.o)))
  
 -extra-$(efi) += boot.init.o relocs-dummy.o runtime.o compat.o
 +extra-$(efi) += boot.init.o mlboot.init.o relocs-dummy.o runtime.o compat.o
  
  stub.o: $(extra-y)
+Index: xen-4.7.1/xen/arch/x86/mlboot.def
+===================================================================
+--- /dev/null
++++ xen-4.7.1/xen/arch/x86/mlboot.def
+@@ -0,0 +1,3 @@
++LIBRARY xen.efi
++EXPORTS
++efi_mlstart
+Index: xen-4.7.1/xen/arch/x86/Makefile
+===================================================================
+--- xen-4.7.1.orig/xen/arch/x86/Makefile
++++ xen-4.7.1/xen/arch/x86/Makefile
+@@ -111,13 +111,13 @@ prelink-efi_lto.o: $(ALL_OBJS) efi/runti
+ prelink.o: $(patsubst %/built_in.o,%/built_in_bin.o,$(ALL_OBJS)) prelink_lto.o
+ 	$(LD) $(LDFLAGS) -r -o $@ $^
+ 
+-prelink-efi.o: $(patsubst %/built_in.o,%/built_in_bin.o,$(ALL_OBJS)) prelink-efi_lto.o efi/boot.init.o
++prelink-efi.o: $(patsubst %/built_in.o,%/built_in_bin.o,$(ALL_OBJS)) prelink-efi_lto.o efi/boot.init.o efi/mlboot.init.o
+ 	$(guard) $(LD) $(LDFLAGS) -r -o $@ $^
+ else
+ prelink.o: $(ALL_OBJS)
+ 	$(LD) $(LDFLAGS) -r -o $@ $^
+ 
+-prelink-efi.o: $(ALL_OBJS) efi/boot.init.o efi/runtime.o efi/compat.o
++prelink-efi.o: $(ALL_OBJS) efi/boot.init.o efi/mlboot.init.o efi/runtime.o efi/compat.o
+ 	$(guard) $(LD) $(LDFLAGS) -r -o $@ $(filter-out %/efi/built_in.o,$^)
+ endif
+ 
+@@ -168,26 +168,26 @@ endif
+ 
+ $(TARGET).efi: prelink-efi.o efi.lds efi/relocs-dummy.o $(BASEDIR)/common/symbols-dummy.o efi/mkreloc
+ 	$(foreach base, $(VIRT_BASE) $(ALT_BASE), \
+-	          $(guard) $(LD_EFI) $(call EFI_LDFLAGS,$(base)) -T efi.lds -N $< efi/relocs-dummy.o \
++	          $(guard) $(LD_EFI) $(call EFI_LDFLAGS,$(base)) mlboot.def -T efi.lds -N $< efi/relocs-dummy.o \
+ 	                $(BASEDIR)/common/symbols-dummy.o -o $(@D)/.$(@F).$(base).0 &&) :
+ 	$(guard) efi/mkreloc $(foreach base,$(VIRT_BASE) $(ALT_BASE),$(@D)/.$(@F).$(base).0) >$(@D)/.$(@F).0r.S
+ 	$(guard) $(NM) -pa --format=sysv $(@D)/.$(@F).$(VIRT_BASE).0 \
+ 		| $(guard) $(BASEDIR)/tools/symbols $(all_symbols) --sysv --sort >$(@D)/.$(@F).0s.S
+ 	$(guard) $(MAKE) -f $(BASEDIR)/Rules.mk $(@D)/.$(@F).0r.o $(@D)/.$(@F).0s.o
+ 	$(foreach base, $(VIRT_BASE) $(ALT_BASE), \
+-	          $(guard) $(LD_EFI) $(call EFI_LDFLAGS,$(base)) -T efi.lds -N $< \
++	          $(guard) $(LD_EFI) $(call EFI_LDFLAGS,$(base)) mlboot.def -T efi.lds -N $< \
+ 	                $(@D)/.$(@F).0r.o $(@D)/.$(@F).0s.o -o $(@D)/.$(@F).$(base).1 &&) :
+ 	$(guard) efi/mkreloc $(foreach base,$(VIRT_BASE) $(ALT_BASE),$(@D)/.$(@F).$(base).1) >$(@D)/.$(@F).1r.S
+ 	$(guard) $(NM) -pa --format=sysv $(@D)/.$(@F).$(VIRT_BASE).1 \
+ 		| $(guard) $(BASEDIR)/tools/symbols $(all_symbols) --sysv --sort >$(@D)/.$(@F).1s.S
+ 	$(guard) $(MAKE) -f $(BASEDIR)/Rules.mk $(@D)/.$(@F).1r.o $(@D)/.$(@F).1s.o
+-	$(guard) $(LD_EFI) $(call EFI_LDFLAGS,$(VIRT_BASE)) -T efi.lds -N $< \
++	$(guard) $(LD_EFI) $(call EFI_LDFLAGS,$(VIRT_BASE)) mlboot.def -T efi.lds -N $< \
+ 	                $(@D)/.$(@F).1r.o $(@D)/.$(@F).1s.o $(note_file) -o $@
+ 	if $(guard) false; then rm -f $@; echo 'EFI support disabled'; fi
+ 	rm -f $(@D)/.$(@F).[0-9]*
+ 
+-efi/boot.init.o efi/runtime.o efi/compat.o: $(BASEDIR)/arch/x86/efi/built_in.o
+-efi/boot.init.o efi/runtime.o efi/compat.o: ;
++efi/boot.init.o efi/mlboot.init.o efi/runtime.o efi/compat.o: $(BASEDIR)/arch/x86/efi/built_in.o
++efi/boot.init.o efi/mlboot.init.o efi/runtime.o efi/compat.o: ;
+ 
+ asm-offsets.s: $(TARGET_SUBARCH)/asm-offsets.c
+ 	$(CC) $(filter-out -flto,$(CFLAGS)) -S -o $@ $<
