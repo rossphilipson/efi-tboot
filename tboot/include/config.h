@@ -49,8 +49,10 @@
  * |    MLEPT      |   Measure Launch page tables
  * |               |    Cover MLE/.text section
  * +---------------+ 0xXXXXA000
+ * |  TB SHARED    |
+ * +---------------+ 0xXXXXC000
  * |    PE HDR     |
- * +---------------+ 0xXXXXB000
+ * +---------------+ 0xXXXXD000
  * |               |
  * |     MLE       |  The MLE/.text section.
  * |               |
@@ -75,9 +77,13 @@
 #define TBOOT_MLEPT_COUNT  (3)
 #define TBOOT_MLEPT_SIZE   (TBOOT_MLEPT_COUNT*PAGE_SIZE)
 
+/* TBOOT shared and handoff block */
+#define TBOOT_TBSHARED_COUNT  (2)
+#define TBOOT_TBSHARED_SIZE   (TBOOT_TBSHARED_COUNT*PAGE_SIZE)
+
 /* Totals */
-#define TBOOT_RTMEM_COUNT (TBOOT_PLEPT_COUNT + TBOOT_MLEPT_COUNT)
-#define TBOOT_RTMEM_SIZE  (TBOOT_PLEPT_SIZE + TBOOT_MLEPT_SIZE)
+#define TBOOT_RTMEM_COUNT (TBOOT_PLEPT_COUNT + TBOOT_MLEPT_COUNT + TBOOT_TBSHARED_COUNT)
+#define TBOOT_RTMEM_SIZE  (TBOOT_PLEPT_SIZE + TBOOT_MLEPT_SIZE + TBOOT_TBSHARED_SIZE)
 
 #ifndef NR_CPUS
 #define NR_CPUS     512

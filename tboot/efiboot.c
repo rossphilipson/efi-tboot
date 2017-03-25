@@ -191,9 +191,8 @@ static bool efi_is_platform_sinit_module(wchar_t *file_path,
     return false;
 }
 
-static EFI_STATUS efi_load_core_files(void)
+bool efi_load_txt_files(void)
 {
-    EFI_STATUS  status = EFI_SUCCESS;
     int         key;
     char        keystr[16];
     const char *value;
@@ -214,8 +213,7 @@ static EFI_STATUS efi_load_core_files(void)
         file_path = atow_cat(efi_get_tboot_path(), value);
         if (!file_path) {
             printk("Failed to allocate buffer for ACM file name\n");
-            status = EFI_OUT_OF_RESOURCES;
-            goto out;
+            goto err;
         }
 
         efi_debug_print_w("ACM:", file_path);
@@ -227,17 +225,16 @@ static EFI_STATUS efi_load_core_files(void)
         }
 
         BS->FreePool(file_path);
-
-        /* Errors not fatal but the config likely includes missing files */
     }
 
     if (!sinit_file->u.base) {
         printk(TBOOT_ERR"no SINIT AC module found\n");
-        return EFI_INVALID_PARAMETER;
+        goto err;
     }
 
-out:
-    return status;
+    return true;
+err:
+    return false;
 }
 
 static void efi_form_config_path(wchar_t *path)
@@ -386,6 +383,31 @@ err:
     return status;
 }
 
+static bool efi_setup_memory_blocks(void)
+{
+    efi_file_t *rtmem = efi_get_file(EFI_FILE_RTMEM);
+    efi_file_t *tbshared = efi_get_file(EFI_FILE_TBSHARED);
+    efi_file_t *memmap = efi_get_file(EFI_FILE_MEMMAP);
+
+    if ((sizeof(efi_tboot_xen_handoff_t) + sizeof(tboot_shared_t))
+        > PAGE_SIZE) {
+        printk("Shared TBOOT information greater than PAGE_SIZE!\n");
+        return false;
+    }
+
+    tbshared->u.base = rtmem->u.base + TBOOT_PLEPT_SIZE + TBOOT_MLEPT_SIZE;
+    tbshared->size = PAGE_SIZE;
+
+    memmap->u.base = tbshared->u.base + PAGE_SIZE;
+    memmap->size = PAGE_SIZE;
+
+    _tboot_handoff = (efi_tboot_xen_handoff_t*)tbshared->u.base;
+    _tboot_shared = (tboot_shared_t*)(tbshared->u.base +
+                                      sizeof(efi_tboot_xen_handoff_t));
+
+    return true;
+}
+
 EFI_STATUS efi_start(EFI_HANDLE ImageHandle,
                      EFI_SYSTEM_TABLE *SystemTable)
 {
@@ -439,21 +461,16 @@ EFI_STATUS efi_start(EFI_HANDLE ImageHandle,
         goto out;
     }
 
+    if (!efi_setup_memory_blocks())
+        goto out;
+
     /* Load the configuration files and information */
     status = efi_load_configs();
     if (EFI_ERROR(status))
         goto out;
 
-    /* Load the platform SINIT, RACM and LCP */
-    status = efi_load_core_files();
-    if (EFI_ERROR(status))
-        goto out;
-
     /* Begin initial launch */
-    begin_initial_launch();
-
-    /* Start Xen here */
-    efi_launch_kernel();
+    begin_launch();
 
     /* SNO */
     printk("FATAL: could not launch Xen!\n");

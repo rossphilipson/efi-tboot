@@ -58,6 +58,30 @@ EFI_GUID Acpi20TableGuid;
 EFI_GUID SMBIOSTableGuid;
 EFI_GUID TbootXenGuid;
 
+#define TB_RESMEM_BLOCKS 128
+
+typedef struct __packed {
+    uint64_t addr;
+    uint64_t length;
+} reserve_map_t;
+
+/* Information passed to Xen at launch by TBOOT */
+typedef struct __packed efi_tboot_xen_handoff {
+    void          *kernel;
+    uint64_t       kernel_size;
+    void          *ramdisk;
+    uint64_t       ramdisk_size;
+    void          *xsm_polic;
+    uint64_t       xsm_policy_size;
+    void          *ucode;
+    uint64_t       ucode_size;
+    void          *memory_map;
+    uint64_t       memory_map_size;
+    uint64_t       memory_desc_size;
+    uint64_t       reserve_map_count;
+    reserve_map_t  reserve_map[TB_RESMEM_BLOCKS];
+} efi_tboot_xen_handoff_t;
+
 /* The following routines are available before and after EBS */
 
 void atow(wchar_t *dst, const char *src, uint64_t count);
@@ -70,6 +94,8 @@ void *efi_get_pe_section(const char *name, void *image_base,
                          uint64_t *size_out);
 void *efi_get_pe_export(const char *name, void *image_base);
 
+bool efi_load_txt_files(void);
+
 void efi_shutdown_system(uint32_t shutdown_type);
 
 /* The following routines are only available after EBS */
@@ -80,7 +106,6 @@ bool efi_get_ram_ranges(uint64_t *min_lo_ram, uint64_t *max_lo_ram,
                         uint64_t *min_hi_ram, uint64_t *max_hi_ram);
 
 /* The following routines are unavailable after EBS */
-
 
 wchar_t *atow_alloc(const char *src);
 char *wtoa_alloc(const wchar_t *src);

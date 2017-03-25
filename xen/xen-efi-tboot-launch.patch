@@ -2,20 +2,33 @@ Index: xen-4.7.1/xen/arch/x86/efi/efi-tboot.h
 ===================================================================
 --- /dev/null
 +++ xen-4.7.1/xen/arch/x86/efi/efi-tboot.h
-@@ -0,0 +1,15 @@
+@@ -0,0 +1,28 @@
 +#ifndef __EFITBOOT_H__
 +#define __EFITBOOT_H__
 +
++#define TB_RESMEM_BLOCKS 128
++
++typedef struct __packed {
++    uint64_t addr;
++    uint64_t length;
++} reserve_map_t;
++
 +/* Information passed to Xen at launch by TBOOT */
-+typedef struct __packed efi_tboot_xen_data {
-+    void *kernel;
-+    uint64_t kernel_size;
-+    void *ramdisk;
-+    uint64_t ramdisk_size;
-+    void *memory_map;
-+    uint64_t memory_map_size;
-+    uint64_t memory_desc_size;
-+} efi_tboot_xen_data_t;
++typedef struct __packed efi_tboot_xen_handoff {
++    void          *kernel;
++    uint64_t       kernel_size;
++    void          *ramdisk;
++    uint64_t       ramdisk_size;
++    void          *xsm_polic;
++    uint64_t       xsm_policy_size;
++    void          *ucode;
++    uint64_t       ucode_size;
++    void          *memory_map;
++    uint64_t       memory_map_size;
++    uint64_t       memory_desc_size;
++    uint64_t       reserve_map_count;
++    reserve_map_t  reserve_map[TB_RESMEM_BLOCKS];
++} efi_tboot_xen_handoff_t;
 +
 +#endif /* __EFITBOOT_H__ */
 Index: xen-4.7.1/xen/arch/x86/tboot.c

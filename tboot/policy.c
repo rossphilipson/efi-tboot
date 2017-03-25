@@ -597,7 +597,7 @@ void apply_policy(tb_error_t error)
             /* do halt at the end */
     }
 
-    _tboot_shared.shutdown_type = TB_SHUTDOWN_HALT;
+    _tboot_shared->shutdown_type = TB_SHUTDOWN_HALT;
     shutdown();
 }
 

@@ -92,9 +92,6 @@ atomic_t ap_wfs_count;
 /* flag for (all APs) exiting mini guest (1 = exit) */
 uint32_t aps_exit_guest;
 
-/* MLE/kernel shared data page (in boot.S) */
-tboot_shared_t _tboot_shared;
-
 /* Address references */
 static uint64_t idle_pg_table_ref;
 static uint64_t host_vmcs_ref;
@@ -444,13 +441,13 @@ static void launch_mini_guest(unsigned int cpuid)
     printk(TBOOT_DETA"launching mini-guest for cpu %u\n", cpuid);
 
     /* this is close enough to entering wait-for-sipi, so inc counter */
-    atomic_inc((atomic_t *)&_tboot_shared.num_in_wfs);
+    atomic_inc((atomic_t *)&_tboot_shared->num_in_wfs);
 
     __vmlaunch();
 
     /* should not reach here */
     atomic_dec(&ap_wfs_count);
-    atomic_dec((atomic_t *)&_tboot_shared.num_in_wfs);
+    atomic_dec((atomic_t *)&_tboot_shared->num_in_wfs);
     error = __vmread(VM_INSTRUCTION_ERROR);
     printk(TBOOT_ERR"vmlaunch failed for cpu %u, error code %lx\n", cpuid, error);
     apply_policy(TB_ERR_FATAL);
@@ -495,7 +492,7 @@ void vmx_vmexit_handler(void)
         print_failed_vmentry_reason(exit_reason);
         stop_vmx(apicid);
         atomic_dec(&ap_wfs_count);
-        atomic_dec((atomic_t *)&_tboot_shared.num_in_wfs);
+        atomic_dec((atomic_t *)&_tboot_shared->num_in_wfs);
         apply_policy(TB_ERR_FATAL);
     }
     else if ( exit_reason == EXIT_REASON_INIT ) {
@@ -513,7 +510,7 @@ void vmx_vmexit_handler(void)
         /* printk("exiting due to SIPI: vector=%x\n", sipi_vec); */
         stop_vmx(apicid);
         atomic_dec(&ap_wfs_count);
-        atomic_dec((atomic_t *)&_tboot_shared.num_in_wfs);
+        atomic_dec((atomic_t *)&_tboot_shared->num_in_wfs);
         cpu_wakeup(apicid, sipi_vec);
 
         /* cpu_wakeup() doesn't return, so we should never get here */
@@ -523,7 +520,7 @@ void vmx_vmexit_handler(void)
     else if ( exit_reason == EXIT_REASON_VMCALL ) {
         stop_vmx(apicid);
         atomic_dec(&ap_wfs_count);
-        atomic_dec((atomic_t *)&_tboot_shared.num_in_wfs);
+        atomic_dec((atomic_t *)&_tboot_shared->num_in_wfs);
         /* spin */
         while ( true )
             __asm__ __volatile__("cli; hlt;");

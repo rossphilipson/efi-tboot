@@ -87,13 +87,6 @@ typedef struct __packed {
     uint64_t kernel_s3_resume_vector;
 } tboot_acpi_sleep_info_t;
 
-#define TB_RESMEM_BLOCKS        128
-
-typedef struct __packed {
-    uint64_t addr;
-    uint64_t length;
-} reserve_map_t;
-
 typedef struct __packed {
     /* version 3+ fields: */
     uuid_t    uuid;              /* {663C8DFF-E8B3-4b82-AABF-19EA4D057A08} */
@@ -119,9 +112,6 @@ typedef struct __packed {
     uint64_t  ap_wake_addr;      /* phys addr of kernel/VMM SIPI vector */
     uint32_t  ap_wake_trigger;   /* kernel/VMM writes APIC ID to wake AP */
     /* version 7+ fields */
-                                 /* reserve mem blocks to adjust dom0 E820 */
-    uint64_t      reserve_map_count;
-    reserve_map_t reserve_map[TB_RESMEM_BLOCKS];
 } tboot_shared_t;
 
 #define TB_SHUTDOWN_REBOOT      0
@@ -153,8 +143,11 @@ typedef struct {
 #define TBOOT_LOG_UUID   {0xc0192526, 0x6b30, 0x4db4, 0x844c, \
                              {0xa3, 0xe9, 0x53, 0xb8, 0x81, 0x74 }}
 
-/* The tboot_shared page */
-tboot_shared_t _tboot_shared;
+/* The TBOOT handoff structure in RT mem */
+efi_tboot_xen_handoff_t *_tboot_handoff;
+
+/* The TBOOT shared structure in RT mem */
+tboot_shared_t *_tboot_shared;
 
 long s3_flag;
 
@@ -173,7 +166,6 @@ static inline void print_tboot_shared(const tboot_shared_t *tboot_shared)
     printk(TBOOT_DETA"\t ap_wake_trigger: %u\n", tboot_shared->ap_wake_trigger);
 }
 
-void begin_initial_launch(void);
 void begin_launch(void);
 void s3_launch(void);
 void shutdown(void);
