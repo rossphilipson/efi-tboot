@@ -2,11 +2,20 @@ Index: xen-4.7.1/xen/arch/x86/efi/efi-tboot.h
 ===================================================================
 --- /dev/null
 +++ xen-4.7.1/xen/arch/x86/efi/efi-tboot.h
-@@ -0,0 +1,6 @@
+@@ -0,0 +1,15 @@
 +#ifndef __EFITBOOT_H__
 +#define __EFITBOOT_H__
 +
 +/* Information passed to Xen at launch by TBOOT */
++typedef struct __packed efi_tboot_xen_data {
++    void *kernel;
++    uint64_t kernel_size;
++    void *ramdisk;
++    uint64_t ramdisk_size;
++    void *memory_map;
++    uint64_t memory_map_size;
++    uint64_t memory_desc_size;
++} efi_tboot_xen_data_t;
 +
 +#endif /* __EFITBOOT_H__ */
 Index: xen-4.7.1/xen/arch/x86/tboot.c
@@ -23,3 +32,76 @@ Index: xen-4.7.1/xen/arch/x86/tboot.c
  /* Global pointer to shared data; NULL means no measured launch. */
  tboot_shared_t *g_tboot_shared;
  
+Index: xen-4.7.1/xen/common/efi/mlboot.c
+===================================================================
+--- /dev/null
++++ xen-4.7.1/xen/common/efi/mlboot.c
+@@ -0,0 +1,43 @@
++#include "efi.h"
++#include <efi/efiprot.h>
++#include <efi/efipciio.h>
++#include <public/xen.h>
++#include <xen/bitops.h>
++#include <xen/compile.h>
++#include <xen/ctype.h>
++#include <xen/dmi.h>
++#include <xen/init.h>
++#include <xen/keyhandler.h>
++#include <xen/lib.h>
++#include <xen/mm.h>
++#include <xen/multiboot.h>
++#include <xen/pci_regs.h>
++#include <xen/pfn.h>
++#if EFI_PAGE_SIZE != PAGE_SIZE
++# error Cannot use xen/pfn.h here!
++#endif
++#include <xen/string.h>
++#include <xen/stringify.h>
++#ifdef CONFIG_X86
++/*
++ * Keep this arch-specific modified include in the common file, as moving
++ * it to the arch specific include file would obscure that special care is
++ * taken to include it with __ASSEMBLY__ defined.
++ */
++#define __ASSEMBLY__ /* avoid pulling in ACPI stuff (conflicts with EFI) */
++#include <asm/fixmap.h>
++#undef __ASSEMBLY__
++#endif
++
++#include "efi-tboot.h"
++
++/* TODO cannot include this directly: */
++/*#include "efi-boot.h"*/
++
++void EFIAPI __init noreturn
++efi_mlstart(struct efi_tboot_xen_data *txd)
++{
++
++    /*efi_arch_post_exit_boot();*/
++    for( ; ; ); /* not reached */
++}
+Index: xen-4.7.1/xen/Makefile
+===================================================================
+--- xen-4.7.1.orig/xen/Makefile
++++ xen-4.7.1/xen/Makefile
+@@ -130,7 +130,7 @@ $(TARGET): delete-unfresh-files
+ 	$(MAKE) -C tools
+ 	$(MAKE) -f $(BASEDIR)/Rules.mk include/xen/compile.h
+ 	[ -e include/asm ] || ln -sf asm-$(TARGET_ARCH) include/asm
+-	[ -e arch/$(TARGET_ARCH)/efi ] && for f in boot.c runtime.c compat.c efi.h;\
++	[ -e arch/$(TARGET_ARCH)/efi ] && for f in boot.c mlboot.c runtime.c compat.c efi.h;\
+ 		do ln -nsf ../../../common/efi/$$f arch/$(TARGET_ARCH)/efi/; done;\
+ 		true
+ 	$(MAKE) -f $(BASEDIR)/Rules.mk -C include
+Index: xen-4.7.1/xen/arch/x86/efi/Makefile
+===================================================================
+--- xen-4.7.1.orig/xen/arch/x86/efi/Makefile
++++ xen-4.7.1/xen/arch/x86/efi/Makefile
+@@ -9,6 +9,6 @@ efi := $(if $(efi),$(shell $(CC) $(filte
+ efi := $(if $(efi),$(shell $(LD_EFI) -mi386pep --subsystem=10 -o check.efi check.o 2>disabled && echo y))
+ efi := $(if $(efi),$(shell rm disabled)y,$(shell $(call create,boot.init.o); $(call create,runtime.o)))
+ 
+-extra-$(efi) += boot.init.o relocs-dummy.o runtime.o compat.o
++extra-$(efi) += boot.init.o mlboot.init.o relocs-dummy.o runtime.o compat.o
+ 
+ stub.o: $(extra-y)
