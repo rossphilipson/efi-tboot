@@ -82,9 +82,6 @@ EFI_GUID AcpiTableGuid            = ACPI_TABLE_GUID;
 EFI_GUID Acpi20TableGuid          = ACPI_20_TABLE_GUID;
 EFI_GUID SMBIOSTableGuid          = SMBIOS_TABLE_GUID;
 
-/* TBOOT/Xen */
-EFI_GUID TbootXenGuid             = EFI_TBOOT_XEN_GUID;
-
 void atow(wchar_t *dst, const char *src, uint64_t count)
 {
     uint64_t i;

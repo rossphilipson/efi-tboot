@@ -41,13 +41,6 @@
 /* TODO debug only stuffs */
 #define EFI_DEBUG
 
-/* Shared RT variable between TBOOT and Xen */
-#define EFI_TBOOT_XEN_GUID \
-    { 0xf112e6cb, 0xce01, 0x4573, {0xa0, 0x52, 0xfb, 0xdb, 0x6c, 0xc0, 0xc7, 0xcb} }
-
-#define EFI_TBOOT_XEN_REV  1
-#define EFI_TBOOT_XEN_NAME L"TbootXenVar"
-
 /* Un-extern these that are defined in the GNU-EFI headers */
 EFI_SYSTEM_TABLE         *ST;
 EFI_BOOT_SERVICES        *BS;
@@ -64,28 +57,6 @@ EFI_GUID AcpiTableGuid;
 EFI_GUID Acpi20TableGuid;
 EFI_GUID SMBIOSTableGuid;
 EFI_GUID TbootXenGuid;
-
-typedef void (*post_launch_t)(void *ets);
-
-typedef struct __packed efi_xen_tboot_data {
-    void *kernel;
-    uint64_t kernel_size;
-    void *ramdisk;
-    uint64_t ramdisk_size;
-    void *memory_map;
-    uint64_t memory_map_size;
-    uint64_t memory_desc_size;
-    uint64_t post_launch_cb;
-} efi_xen_tboot_data_t;
-
-typedef void (*begin_launch_t)(efi_xen_tboot_data_t *xtd);
-
-typedef struct __packed efi_tboot_xen_var {
-    uint64_t revision;
-    const char *xen_config;
-    uint64_t xen_config_size;
-    uint64_t begin_launch_cb;
-} efi_tboot_xen_var_t;
 
 /* The following routines are available before and after EBS */
 
@@ -109,6 +80,7 @@ bool efi_get_ram_ranges(uint64_t *min_lo_ram, uint64_t *max_lo_ram,
                         uint64_t *min_hi_ram, uint64_t *max_hi_ram);
 
 /* The following routines are unavailable after EBS */
+
 
 wchar_t *atow_alloc(const char *src);
 char *wtoa_alloc(const wchar_t *src);

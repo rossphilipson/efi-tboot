@@ -336,20 +336,17 @@ void begin_initial_launch(void)
      */
 }
 
-void begin_launch(efi_xen_tboot_data_t *xtd)
+void begin_launch(void)
 {
     tb_error_t err;
 
     /* initialize post EBS logging targets - this must be done first */
     printk_init(INIT_POST_EBS);
 
-    /* store kernel and ramdisk module information */
-    if ( !efi_store_xen_tboot_data(xtd) )
-        apply_policy(TB_ERR_FATAL);
-
     /* DEBUG */
     print_system_values();
 
+    /* TODO this will need some work */
     if ( !efi_scan_memory_map() )
         apply_policy(TB_ERR_FATAL);
 

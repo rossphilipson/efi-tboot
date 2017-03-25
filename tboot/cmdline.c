@@ -278,11 +278,11 @@ void get_tboot_log_targets(void)
             g_log_targets |= TBOOT_LOG_TARGET_SERIAL;
             targets += 6;
         }
-        else if ( strncmp(targets, "vga", 3) == 0 && g_post_ebs ) {
+        else if ( strncmp(targets, "vga", 3) == 0 && efi_is_postebs() ) {
             g_log_targets |= TBOOT_LOG_TARGET_VGA;
             targets += 3;
         }
-        else if ( strncmp(targets, "efi", 3) == 0 && !g_post_ebs ) {
+        else if ( strncmp(targets, "efi", 3) == 0 && !efi_is_postebs() ) {
             g_log_targets |= TBOOT_LOG_TARGET_EFI;
             targets += 3;
         }

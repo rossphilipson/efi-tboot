@@ -83,20 +83,6 @@ static void efi_debug_print_i(void)
     efi_debug_pause();
 }
 
-static void efi_begin_launch(efi_xen_tboot_data_t *xtd);
-
-static void efi_debug_print_v(efi_tboot_xen_var_t *v)
-{
-    printk("EFI shared variable:\n");
-    printk("  revision        = %llx\n", v->revision);
-    printk("  xen_config      = %p\n", v->xen_config);
-    printk("  xen_config_size = %llx\n", v->xen_config_size);
-    printk("  begin_launch_cb = %llx\n", v->begin_launch_cb);
-    printk("  begin_launch    = %p\n", efi_begin_launch);
-
-    efi_debug_pause();
-}
-
 static void efi_debug_print_w(const char *pfx, const wchar_t *wstr)
 {
     char *p = wtoa_alloc(wstr);
@@ -174,37 +160,6 @@ void efi_launch_kernel(void)
     /* If we are still here then someting failed anyway */
 out:
     ST->RuntimeServices->ResetSystem(EfiResetShutdown, EFI_OUT_OF_RESOURCES, 0, NULL);
-}
-
-static void efi_begin_launch(efi_xen_tboot_data_t *xtd)
-{
-    g_post_ebs = true;
-    begin_launch(xtd);
-}
-
-static EFI_STATUS efi_setup_tboot_xen_var(void)
-{
-    EFI_STATUS          status = EFI_SUCCESS;
-    efi_tboot_xen_var_t var;
-    efi_file_t *cfg = efi_get_file(EFI_FILE_XEN_CONFIG);
-
-    memset(&var, 0, sizeof(efi_tboot_xen_var_t));
-    var.revision = EFI_TBOOT_XEN_REV;
-    var.begin_launch_cb = (uint64_t)efi_begin_launch;
-    var.xen_config = cfg->u.base;
-    var.xen_config_size = cfg->size;
-
-    status = RT->SetVariable(EFI_TBOOT_XEN_NAME,
-                             &TbootXenGuid,
-                             EFI_VARIABLE_BOOTSERVICE_ACCESS|EFI_VARIABLE_RUNTIME_ACCESS,
-                             sizeof(efi_tboot_xen_var_t),
-                             &var);
-    if (EFI_ERROR(status))
-        printk("Failed to set shared RT variable - status: %d\n", status);
-
-    efi_debug_print_v(&var);
-
-    return status;
 }
 
 static bool efi_is_platform_sinit_module(wchar_t *file_path,
@@ -491,11 +446,6 @@ EFI_STATUS efi_start(EFI_HANDLE ImageHandle,
 
     /* Load the platform SINIT, RACM and LCP */
     status = efi_load_core_files();
-    if (EFI_ERROR(status))
-        goto out;
-
-    /* Setup RT shared variable */
-    status = efi_setup_tboot_xen_var();
     if (EFI_ERROR(status))
         goto out;
 

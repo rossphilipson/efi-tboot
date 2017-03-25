@@ -174,7 +174,7 @@ static inline void print_tboot_shared(const tboot_shared_t *tboot_shared)
 }
 
 void begin_initial_launch(void);
-void begin_launch(efi_xen_tboot_data_t *xtd);
+void begin_launch(void);
 void s3_launch(void);
 void shutdown(void);
 void cpu_wakeup(uint32_t cpuid, uint64_t sipi_vec);

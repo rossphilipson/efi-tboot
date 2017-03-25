@@ -53,10 +53,7 @@ wchar_t tboot_dir[EFI_MAX_PATH];
 const char *kernel_cmdline = "";
 
 /* Is this pre or post EBS */
-bool g_post_ebs = false;
-
-/* Xen post launch callback */
-uint64_t g_xen_post_launch_cb;
+bool postebs = false;
 
 void efi_cfg_init(void)
 {
@@ -67,6 +64,16 @@ void efi_cfg_init(void)
 efi_file_t *efi_get_file(efi_file_select_t sel)
 {
     return &efi_files[sel];
+}
+
+void efi_set_postebs(void)
+{
+    postebs = true;
+}
+
+bool efi_is_postebs(void)
+{
+    return postebs;
 }
 
 const wchar_t *efi_get_tboot_path(void)
@@ -183,33 +190,4 @@ bool efi_cfg_copy_tboot_path(const wchar_t *file_path)
     }
 
     return false;
-}
-
-/* TODO refactor */
-
-bool efi_store_xen_tboot_data(efi_xen_tboot_data_t *xtd)
-{
-    efi_file_t *file;
-
-    /* sanity */
-    if ( (xtd->kernel == NULL) || (xtd->kernel_size == 0) ||
-         (xtd->ramdisk == NULL) || (xtd->ramdisk_size == 0) ||
-         (xtd->memory_map == NULL) || (xtd->memory_map_size == 0) ||
-         (xtd->memory_desc_size == 0))
-        return false;
-
-    file = efi_get_file(EFI_FILE_KERNEL);
-    file->u.base = xtd->kernel;
-    file->size = xtd->kernel_size;
-    file = efi_get_file(EFI_FILE_RAMDISK);
-    file->u.base = xtd->ramdisk;
-    file->size = xtd->ramdisk_size;
-    file = efi_get_file(EFI_FILE_MEMMAP);
-    file->u.base = xtd->memory_map;
-    file->size = xtd->memory_map_size;
-    file->other = xtd->memory_desc_size;
-
-    g_xen_post_launch_cb = xtd->post_launch_cb;
-
-    return true;
 }
