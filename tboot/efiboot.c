@@ -162,6 +162,35 @@ out:
     ST->RuntimeServices->ResetSystem(EfiResetShutdown, EFI_OUT_OF_RESOURCES, 0, NULL);
 }
 
+bool efi_exit_boot_services(void)
+{
+    EFI_STATUS    status;
+    uint64_t      map_key;
+    efi_memmap_t *memmap = efi_get_memmap();
+
+again:
+    status = BS->GetMemoryMap(&memmap->size,
+                              (EFI_MEMORY_DESCRIPTOR*)memmap->base,
+                              &map_key,
+                              &memmap->desc_size,
+                              &memmap->desc_ver);
+    if (EFI_ERROR(status)) {
+        printk("Failed to get memory map - status: %d\n", status);
+        return false;
+    }
+
+    status = BS->ExitBootServices(parent_image_handle, map_key);
+    if (status == EFI_INVALID_PARAMETER)
+        goto again;
+
+    if (EFI_ERROR(status)) {
+        printk("Unknown failure in call to ExitBootServices - status: %d\n", status);
+        return false;
+    }
+
+    return true;
+}
+
 static bool efi_is_platform_sinit_module(wchar_t *file_path,
                                          efi_file_t *file_out)
 {
@@ -387,7 +416,7 @@ static bool efi_setup_memory_blocks(void)
 {
     efi_file_t *rtmem = efi_get_file(EFI_FILE_RTMEM);
     efi_file_t *tbshared = efi_get_file(EFI_FILE_TBSHARED);
-    efi_file_t *memmap = efi_get_file(EFI_FILE_MEMMAP);
+    efi_memmap_t *memmap = efi_get_memmap();
 
     if ((sizeof(efi_tboot_xen_handoff_t) + sizeof(tboot_shared_t))
         > PAGE_SIZE) {
@@ -398,7 +427,7 @@ static bool efi_setup_memory_blocks(void)
     tbshared->u.base = rtmem->u.base + TBOOT_PLEPT_SIZE + TBOOT_MLEPT_SIZE;
     tbshared->size = PAGE_SIZE;
 
-    memmap->u.base = tbshared->u.base + PAGE_SIZE;
+    memmap->base = tbshared->u.base + PAGE_SIZE;
     memmap->size = PAGE_SIZE;
 
     _tboot_handoff = (efi_tboot_xen_handoff_t*)tbshared->u.base;

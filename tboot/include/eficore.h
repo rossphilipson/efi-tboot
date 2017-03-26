@@ -78,6 +78,7 @@ typedef struct __packed efi_tboot_xen_handoff {
     void          *memory_map;
     uint64_t       memory_map_size;
     uint64_t       memory_desc_size;
+    uint64_t       memory_desc_ver;
     uint64_t       reserve_map_count;
     reserve_map_t  reserve_map[TB_RESMEM_BLOCKS];
 } efi_tboot_xen_handoff_t;
@@ -95,6 +96,8 @@ void *efi_get_pe_section(const char *name, void *image_base,
 void *efi_get_pe_export(const char *name, void *image_base);
 
 bool efi_load_txt_files(void);
+
+bool efi_exit_boot_services(void);
 
 void efi_shutdown_system(uint32_t shutdown_type);
 

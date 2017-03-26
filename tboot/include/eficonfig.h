@@ -63,7 +63,6 @@ typedef enum efi_file_select {
     EFI_FILE_LCP,
     EFI_FILE_RTMEM,
     EFI_FILE_TBSHARED,
-    EFI_FILE_MEMMAP,
     EFI_FILE_IMAGE,
     EFI_FILE_IMAGE_TEXT,
     EFI_FILE_IMAGE_BSS,
@@ -80,11 +79,18 @@ typedef struct {
         EFI_PHYSICAL_ADDRESS addr;
     } u;
     uint64_t size;
-    uint64_t other;
 } efi_file_t;
+
+typedef struct {
+    void     *base;
+    uint64_t  size;
+    uint64_t  desc_size;
+    uint32_t  desc_ver;
+} efi_memmap_t;
 
 void efi_cfg_init(void);
 efi_file_t *efi_get_file(efi_file_select_t sel);
+efi_memmap_t *efi_get_memmap(void);
 void efi_set_postebs(void);
 bool efi_is_postebs(void);
 const wchar_t *efi_get_tboot_path(void);

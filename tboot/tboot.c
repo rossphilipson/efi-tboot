@@ -73,11 +73,11 @@
 /* counter timeout for waiting for all APs to exit guests */
 #define AP_GUEST_EXIT_TIMEOUT     0x01000000
 
-__data long s3_flag = 0;
+long __data s3_flag = 0;
 
 /* MLE/kernel shared data and handoff structures */
-efi_tboot_xen_handoff_t *_tboot_handoff;
-tboot_shared_t *_tboot_shared;
+efi_tboot_xen_handoff_t __data *_tboot_handoff;
+tboot_shared_t __data *_tboot_shared;
 
 #ifdef EFI_DEBUG
 static void efi_debug_print_files(void)
@@ -351,7 +351,9 @@ void begin_launch(void)
 
     store_section_sizes();
 
-    /* TODO this is where whe exit boot services */
+    /* One to a brave new world... */
+    if (!efi_exit_boot_services())
+        apply_policy(TB_ERR_FATAL);
 
     /* initialize post EBS logging targets - this must be done first */
     printk_init(INIT_POST_EBS);

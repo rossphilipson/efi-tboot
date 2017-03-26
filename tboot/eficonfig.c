@@ -45,15 +45,18 @@
 #include <printk.h>
 
 /* Memory based file storage */
-static efi_file_t efi_files[EFI_FILE_MAX];
+static efi_file_t __data efi_files[EFI_FILE_MAX];
+
+/* The EFI memory map just after EBS */
+static efi_memmap_t __data *efi_memmap;
 
 /* Root path to TBOOT image home */
-wchar_t tboot_dir[EFI_MAX_PATH];
+static wchar_t __data tboot_dir[EFI_MAX_PATH];
 
-const char *kernel_cmdline = "";
+static const char __data *kernel_cmdline = "";
 
 /* Is this pre or post EBS */
-bool postebs = false;
+static bool __data postebs = false;
 
 void efi_cfg_init(void)
 {
@@ -64,6 +67,11 @@ void efi_cfg_init(void)
 efi_file_t *efi_get_file(efi_file_select_t sel)
 {
     return &efi_files[sel];
+}
+
+efi_memmap_t *efi_get_memmap(void)
+{
+    return efi_memmap;
 }
 
 void efi_set_postebs(void)

@@ -67,7 +67,7 @@ static __data uint64_t g_ram_map_count = 0;
 /* TODO this needs some evaluation - preserve for now. If using this causes the
  * PMRs to not cover the MLE then game over. See the reloc code in boot.c.
  */
-uint32_t g_min_ram = 0;
+uint32_t __data g_min_ram = 0;
 
 /*
  * All we really care about are conventional RAM regions. This will include
@@ -76,16 +76,15 @@ uint32_t g_min_ram = 0;
 bool efi_scan_memory_map(void)
 {
     const EFI_MEMORY_DESCRIPTOR *desc;
-    efi_file_t *mmfile;
     const void *memory_map;
     uint64_t size, size_desc, length, type, last = MEM_NONE, i;
     mem_map_t *entry = g_ram_map - 1;
+    efi_memmap_t *memmap = efi_get_memmap();
 
     /* Note the other field holds the descriptor size for mem map file */
-    mmfile = efi_get_file(EFI_FILE_MEMMAP);
-    memory_map = mmfile->u.base;
-    size       = mmfile->size;
-    size_desc  = mmfile->other;
+    memory_map = memmap->base;
+    size       = memmap->size;
+    size_desc  = memmap->desc_size;
 
     if (!memory_map || size == 0 ||
          size_desc < sizeof(EFI_MEMORY_DESCRIPTOR)) {
