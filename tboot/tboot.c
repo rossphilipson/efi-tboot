@@ -256,7 +256,11 @@ void begin_launch(void)
     if (!efi_load_txt_files())
         apply_policy(TB_ERR_FATAL);
 
-    /* if telled to check revocation acm result, go with simplified path */
+    /* Load all the boot time files: Xen, kernel, ramdisk, XSM, ucode */
+    if (!efi_load_boot_files())
+        apply_policy(TB_ERR_FATAL);
+
+    /* if told to check revocation acm result, go with simplified path */
     if ( get_tboot_call_racm_check() )
         check_racm_result(); /* never return */
 

@@ -51,6 +51,9 @@
 #define SECTION_GLOBAL "global"
 # define ITEM_DEFAULT  "default"
 # define ITEM_KERNEL   "kernel"
+# define ITEM_RAMDISK  "ramdisk"
+# define ITEM_XSM      "xsm"
+# define ITEM_UCODE    "ucode"
 
 typedef enum efi_file_select {
     EFI_FILE_INVALID = 0,
@@ -69,6 +72,7 @@ typedef enum efi_file_select {
     EFI_FILE_XEN,
     EFI_FILE_KERNEL,
     EFI_FILE_RAMDISK,
+    EFI_FILE_XSM,
     EFI_FILE_UCODE,
     EFI_FILE_MAX
 } efi_file_select_t;

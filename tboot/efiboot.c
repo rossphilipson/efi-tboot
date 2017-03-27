@@ -105,7 +105,6 @@ static EFI_STATUS efi_start_next_image(const wchar_t *path)
     EFI_STATUS        status = EFI_SUCCESS;
     EFI_DEVICE_PATH  *dev_path = NULL;
     EFI_HANDLE        image_handle = NULL;
-    EFI_LOADED_IMAGE *loaded_image;
 
     dev_path = efi_get_device_path(path, parent_device_handle);
     if (dev_path == NULL) {
@@ -123,14 +122,6 @@ static EFI_STATUS efi_start_next_image(const wchar_t *path)
                            &image_handle);
     if (EFI_ERROR(status)) {
         printk("Failed to load image - status: %d\n", status);
-        goto out;
-    }
-
-    status = BS->HandleProtocol(image_handle,
-                                &LoadedImageProtocol,
-                                (VOID*)&loaded_image);
-    if (EFI_ERROR(status)) {
-        printk("Failed to get loaded image info - status: %d\n", status);
         goto out;
     }
 
@@ -186,6 +177,126 @@ again:
     if (EFI_ERROR(status)) {
         printk("Unknown failure in call to ExitBootServices - status: %d\n", status);
         return false;
+    }
+
+    return true;
+}
+
+struct file_item_sel {
+    efi_file_select_t  file;
+    const char        *item;
+};
+
+static struct file_item_sel file_list[] = {
+    {EFI_FILE_KERNEL, ITEM_KERNEL},
+    {EFI_FILE_RAMDISK, ITEM_RAMDISK},
+    {EFI_FILE_XSM, ITEM_XSM},
+    {EFI_FILE_UCODE, ITEM_UCODE}
+};
+
+bool efi_load_boot_files(void)
+{
+    EFI_STATUS        status;
+    wchar_t          *file_path;
+    EFI_DEVICE_PATH  *dev_path = NULL;
+    EFI_HANDLE        image_handle = NULL;
+    EFI_LOADED_IMAGE *loaded_image;
+    efi_file_t       *cfg;
+    efi_file_t       *file;
+    int               i;
+    char             *section, *path;
+
+    /*
+     * First Xen - Xen is special because we use the EFI loader to load the
+     * PE image into memory.
+     */
+    cfg = efi_get_file(EFI_FILE_TBOOT_CONFIG_PARSED);
+    file = efi_get_file(EFI_FILE_XEN);
+    path = efi_cfg_get_value(cfg, SECTION_TBOOT, ITEM_XENPATH);
+
+    file_path = atow_alloc(path);
+    if (!file_path) {
+        printk("Failed to allocate buffer for Xen file\n");
+        return false;
+    }
+
+    dev_path = efi_get_device_path(file_path, parent_device_handle);
+    if (dev_path == NULL) {
+        printk("Failed to get device path for file %s\n", path);
+        BS->FreePool(file_path);
+        return false;
+    }
+
+    BS->FreePool(file_path);
+
+    status = BS->LoadImage(FALSE,
+                           parent_image_handle,
+                           dev_path,
+                           NULL,
+                           0,
+                           &image_handle);
+    if (EFI_ERROR(status)) {
+        printk("Failed to load image - status: %d\n", status);
+        return false;
+    }
+
+    status = BS->HandleProtocol(image_handle,
+                                &LoadedImageProtocol,
+                                (VOID*)&loaded_image);
+    if (EFI_ERROR(status)) {
+        printk("Failed to get loaded image info - status: %d\n", status);
+        return false;
+    }
+
+    file->u.base = loaded_image->ImageBase;
+    file->size = loaded_image->ImageSize;
+    efi_debug_print_s(MAKE_STR(ITEM_XENPATH), path);
+
+    /* Next it is the kernel and optionally the ramdisk, xsm and ucode files */
+    cfg = efi_get_file(EFI_FILE_XEN_CONFIG_PARSED);
+    section = efi_cfg_get_value(cfg, SECTION_GLOBAL, ITEM_DEFAULT);
+    if (!section) {
+        printk("No default section in Xen config file??\n");
+        return false;
+    }
+
+    /* Locate and split off the kernel cmdline leaving kernel path in cfg */
+    if (!efi_split_kernel_line()) {
+        printk("Failed to parse and find kernel entry in Xen config\n");
+        return false;
+    }
+    efi_debug_print_s("KERNEL CMDLINE:", efi_get_kernel_cmdline());
+
+    for (i = 0; i < 4; i++) {
+        file = efi_get_file(file_list[i].file);
+        path = efi_cfg_get_value(cfg, section, file_list[i].item);
+
+        file_path = atow_alloc(path);
+        if (!file_path) {
+            printk("Failed to allocate buffer for file: %s\n", path);
+            return false;
+        }
+
+        status = efi_read_file(efi_file_system,
+                               file_path,
+                               EfiLoaderData,
+                               &file->size,
+                               &file->u.addr);
+        BS->FreePool(file_path);
+        if (EFI_ERROR(status)) {
+            if (file_list[i].file == EFI_FILE_KERNEL) {
+                printk("Failed to read kernel file: %s  - status: %d\n",
+                       path, status);
+                return false;
+            }
+            else {
+                /* Missing ramdisk, maybe. Missing xsm or ucode is ok. */
+                printk("Could not read boot file: %s  - status: %d\n",
+                       path, status);
+                continue;
+            }
+        }
+        efi_debug_print_s(file_list[i].item, path);
     }
 
     return true;
@@ -388,14 +499,6 @@ static EFI_STATUS efi_load_configs(void)
     cfg->size = size;
     efi_cfg_pre_parse(cfg);
     BS->FreePool(file_path);
-
-    /* Locate and split off the kernel cmdline */
-    if (!efi_split_kernel_line()) {
-        printk("Failed to parse and find kernel entry in Xen config\n");
-        status = EFI_INVALID_PARAMETER;
-        goto err;
-    }
-    efi_debug_print_s("KERNEL CMDLINE:", efi_get_kernel_cmdline());
 
     return EFI_SUCCESS;
 

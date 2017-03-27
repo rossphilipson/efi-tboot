@@ -82,6 +82,8 @@ static inline bool multiply_overflow_u32(uint32_t x, uint32_t y)
 
 #define AP_WAKE_TRIGGER_DEF   0xffffffff
 
+#define MAKE_STR(s) (#s)
+
 #endif    /* __MISC_H__ */
 
 /*

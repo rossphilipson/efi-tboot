@@ -58,7 +58,8 @@ EFI_GUID Acpi20TableGuid;
 EFI_GUID SMBIOSTableGuid;
 EFI_GUID TbootXenGuid;
 
-#define TB_RESMEM_BLOCKS 128
+#define BOOT_CMDLINE_SIZE 512
+#define TB_RESMEM_BLOCKS  128
 
 typedef struct __packed {
     uint64_t addr;
@@ -67,20 +68,26 @@ typedef struct __packed {
 
 /* Information passed to Xen at launch by TBOOT */
 typedef struct __packed efi_tboot_xen_handoff {
+    void          *xen;
+    uint64_t       xen_size;
     void          *kernel;
     uint64_t       kernel_size;
     void          *ramdisk;
     uint64_t       ramdisk_size;
-    void          *xsm_polic;
-    uint64_t       xsm_policy_size;
+    void          *xsm;
+    uint64_t       xsm_size;
     void          *ucode;
     uint64_t       ucode_size;
+    void          *config;
+    uint64_t       config_size;
     void          *memory_map;
     uint64_t       memory_map_size;
     uint64_t       memory_desc_size;
     uint64_t       memory_desc_ver;
     uint64_t       reserve_map_count;
     reserve_map_t  reserve_map[TB_RESMEM_BLOCKS];
+    char          *xen_cmdline[BOOT_CMDLINE_SIZE];
+    char          *kernel_cmdline[BOOT_CMDLINE_SIZE];
 } efi_tboot_xen_handoff_t;
 
 /* The following routines are available before and after EBS */
@@ -96,6 +103,8 @@ void *efi_get_pe_section(const char *name, void *image_base,
 void *efi_get_pe_export(const char *name, void *image_base);
 
 bool efi_load_txt_files(void);
+
+bool efi_load_boot_files(void);
 
 bool efi_exit_boot_services(void);
 
