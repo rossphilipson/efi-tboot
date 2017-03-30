@@ -247,6 +247,7 @@ entry64:
 	/* ESI still has original EBX, put it back */
 	xorq	%rbx, %rbx
 	movl	%esi, %ebx
+	movq	%rbx, %r8
 
 	/* 
 	 * Layout check from original TBOOT. If EBX did not contain the
@@ -357,6 +358,9 @@ start64:
 	movq	%cr4, %rax
 	orq	$CR4_MCE, %rax
 	movq	%rax, %cr4
+
+	/* MLE base as post_launch arg */
+	movq	%r8, %rcx
 
 	/* And we are outa here... */
 	callq	post_launch

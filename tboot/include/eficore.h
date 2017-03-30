@@ -58,7 +58,6 @@ EFI_GUID Acpi20TableGuid;
 EFI_GUID SMBIOSTableGuid;
 EFI_GUID TbootXenGuid;
 
-#define BOOT_CMDLINE_SIZE 512
 #define TB_RESMEM_BLOCKS  128
 
 typedef struct __packed {
@@ -80,15 +79,17 @@ typedef struct __packed efi_tboot_xen_handoff {
     uint64_t       ucode_size;
     void          *config;
     uint64_t       config_size;
+    void          *system_table;
     void          *memory_map;
     uint64_t       memory_map_size;
     uint64_t       memory_desc_size;
     uint64_t       memory_desc_ver;
     uint64_t       reserve_map_count;
     reserve_map_t  reserve_map[TB_RESMEM_BLOCKS];
-    char          *xen_cmdline[BOOT_CMDLINE_SIZE];
-    char          *kernel_cmdline[BOOT_CMDLINE_SIZE];
 } efi_tboot_xen_handoff_t;
+
+/* The TBOOT handoff structure in RT mem */
+efi_tboot_xen_handoff_t *_tboot_handoff;
 
 /* The following routines are available before and after EBS */
 
@@ -116,6 +117,7 @@ bool efi_scan_memory_map(void);
 bool efi_add_resmap_entry(uint64_t addr, uint64_t length);
 bool efi_get_ram_ranges(uint64_t *min_lo_ram, uint64_t *max_lo_ram,
                         uint64_t *min_hi_ram, uint64_t *max_hi_ram);
+bool efi_verify_rtmem_layout(uint64_t mle_base);
 
 /* The following routines are unavailable after EBS */
 

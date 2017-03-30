@@ -199,3 +199,52 @@ bool efi_cfg_copy_tboot_path(const wchar_t *file_path)
 
     return false;
 }
+
+void efi_setup_xen_handoff(void)
+{
+    efi_file_t   *file;
+    efi_memmap_t *memmap;
+
+    file = efi_get_file(EFI_FILE_XEN);
+    _tboot_handoff->xen = file->u.base;
+    _tboot_handoff->xen_size = file->size;
+    file = efi_get_file(EFI_FILE_KERNEL);
+    _tboot_handoff->kernel = file->u.base;
+    _tboot_handoff->kernel_size = file->size;
+    file = efi_get_file(EFI_FILE_RAMDISK);
+    _tboot_handoff->ramdisk = file->u.base;
+    _tboot_handoff->ramdisk_size = file->size;
+    file = efi_get_file(EFI_FILE_XSM);
+    _tboot_handoff->xsm = file->u.base;
+    _tboot_handoff->xsm_size = file->size;
+    file = efi_get_file(EFI_FILE_UCODE);
+    _tboot_handoff->ucode = file->u.base;
+    _tboot_handoff->ucode_size = file->size;
+    file = efi_get_file(EFI_FILE_XEN_CONFIG);
+    _tboot_handoff->config = file->u.base;
+    _tboot_handoff->config_size = file->size;
+
+    _tboot_handoff->system_table = ST;
+
+    memmap = efi_get_memmap();
+    _tboot_handoff->memory_map = memmap->base;
+    _tboot_handoff->memory_map_size = memmap->size;
+    _tboot_handoff->memory_desc_size = memmap->desc_size;
+    _tboot_handoff->memory_desc_ver = memmap->desc_ver;
+
+    /*
+     * TODO load all the bits Xen will need:
+     *  Config info (just give xen the conf to parse) (DONE here)
+     *  E820 Reserve memory map (DONE in efi_get_ram_ranges post ML)
+     *  EFI mem map (just before EBS) in RTMEM area (DONE here)
+     *  EFI system table for RT and config tables (DONE here)
+     *  GOP stuffs (in RT data mem)
+     *  Console values (maybe?)
+     */
+
+    /*
+     * N.B. we are currently not supporting and passing:
+     *  - PCI ROM information reported by XEN_FW_EFI_PCI_ROM hc.
+     *  - EDD disk firmware info reported by XEN_FW_DISK_INFO hc op.
+     */
+}

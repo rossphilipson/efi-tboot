@@ -239,19 +239,6 @@ void begin_launch(void)
 
     efi_debug_print_files();
 
-    /*
-     * TODO load all the bits Xen will need:
-     *  All modules and cmdlines (inc Xen info)
-     *  Config info (do we just give xen the conf to parse?)
-     *  E820 Reserve memory map
-     *  EFI mem map (just before EBS) in RTMEM area
-     *  EFI system table for RT and config tables
-     *  PCI info (in RT data mem)
-     *  GOP stuffs (in RT data mem)
-     *  Console values (maybe?)
-     *  EDD (later in RT data mem)
-     */
-
     /* Load the TXT platform SINIT, RACM and LCP */
     if (!efi_load_txt_files())
         apply_policy(TB_ERR_FATAL);
@@ -343,10 +330,9 @@ void begin_launch(void)
         apply_policy(TB_ERR_TPM_NOT_READY);
 
     /*
-     * Some of the MLE bits can be setup early before we jump off to
-     * the next gig. First setup the MLE header with offest relative to
-     * where we are then build the MLE page tables. Also load RIP
-     * relative addresses for VMCS structures.
+     * Some of the MLE bits can be setup early before we EBS. First setup the
+     * MLE header with offest relative to where we are then build the MLE page
+     * tables.
      */
     txt_init_mle_header();
 
@@ -365,15 +351,15 @@ void begin_launch(void)
     /* DEBUG */
     print_system_values();
 
-    /* TODO this will need some work */
-    if ( !efi_scan_memory_map() )
-        apply_policy(TB_ERR_FATAL);
-
     /* DEBUG */
     /*dump_page_tables();*/
 
+    /* scan memory map pre-ML */
+    if (!efi_scan_memory_map())
+        apply_policy(TB_ERR_FATAL);
+
     /* make the CPU ready for measured launch */
-    if ( !prepare_cpu() )
+    if (!prepare_cpu())
         apply_policy(TB_ERR_FATAL);
 
     /* launch the measured environment */
@@ -381,7 +367,7 @@ void begin_launch(void)
     apply_policy(err);
 }
 
-void post_launch(void)
+void post_launch(uint64_t mle_base)
 {
     /* always load cmdline defaults */
     tboot_parse_cmdline(true);
@@ -396,6 +382,17 @@ void post_launch(void)
     printk(TBOOT_INFO"   %s\n", TBOOT_CHANGESET);
     printk(TBOOT_INFO"*********************************************\n");
 
+    if (!efi_verify_rtmem_layout(mle_base))
+        apply_policy(TB_ERR_FATAL);
+
+    printk(TBOOT_INFO"TBOOT handoff: %p (%x) shared: %p (%x)\n",
+           _tboot_handoff, sizeof(efi_tboot_xen_handoff_t),
+           _tboot_shared, sizeof(tboot_shared_t));
+
+    /* scan memory map again post ML */
+    if (!efi_scan_memory_map())
+        apply_policy(TB_ERR_FATAL);
+
     /* init the bits needed to run APs in mini-VMs */
     init_vmcs_addrs();
 
@@ -403,11 +400,9 @@ void post_launch(void)
 
     /* TODO reparse and load configs stored in the MLE */
 
-    /* TODO measure the memory map */
+    /* TODO measure Xen image before transferring control back to it */
 
-    /* TODO call efi_scan_memory_map again after measured launch to rebuild map */
-
-    /* TODO hash Xen text section before transferring control back to it */
+    efi_setup_xen_handoff();
 
     /* TODO Start Xen here */
 }

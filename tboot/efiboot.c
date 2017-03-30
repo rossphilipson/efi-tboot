@@ -37,7 +37,9 @@
 #include <efibase.h>
 #include <string.h>
 #include <stdbool.h>
+#include <compiler.h>
 #include <misc.h>
+#include <processor.h>
 #include <page.h>
 #include <printk.h>
 #include <eficore.h>
@@ -182,12 +184,71 @@ again:
     return true;
 }
 
-struct file_item_sel {
+bool efi_verify_rtmem_layout(uint64_t mle_base)
+{
+    efi_file_t *discard = efi_get_file(EFI_FILE_INVALID);
+    efi_file_t *file;
+
+    /* Discard the config files that are no longer used post launch */
+    memset(discard, 0, sizeof(efi_file_t)*EFI_FILE_DISCARD_MARKER);
+
+    /*
+     * The MLE size is stored in the .text section and was measured. All
+     * of the MLE page tables and layout including the MLE entry point was
+     * validated in launch.S. Since the MLE entry point is known to be good
+     * then the 64b page tables in CR3 are correct also.
+     *
+     * The MLE base passed here from the post launch code in launch.S was
+     * validated there. This is our known good starting point. We can validate
+     * the rest of the memory layout that we care about which is the TBOOT
+     * shared area and that the config files are in the MLE (where they were
+     * measured too).
+     */
+    printk(TBOOT_INFO"Post launch physical MLE base: %llx\n", mle_base);
+
+    /* Validate the config files point to the right locations in the MLE */
+    file = efi_get_file(EFI_FILE_TBOOT_CONFIG);
+    if ((file->size > EFI_MAX_CONFIG_FILE)||
+        (file->u.base != tboot_config_file)) {
+        printk(TBOOT_ERR"Invalid TBOOT config location or size,"
+               "expected: %p (<= %llx) reported: %p (%llx)\n",
+               tboot_config_file, EFI_MAX_CONFIG_FILE, file->u.base, file->size);
+        return false;
+    }
+
+    file = efi_get_file(EFI_FILE_XEN_CONFIG);
+    if ((file->size > EFI_MAX_CONFIG_FILE)||
+        (file->u.base != xen_config_file)) {
+        printk(TBOOT_ERR"Invalid Xen config location or size,"
+               "expected: %p (<= %llx) reported: %p (%llx)\n",
+               xen_config_file, EFI_MAX_CONFIG_FILE, file->u.base, file->size);
+        return false;
+    }
+
+    /* Validate TBOOT shared values and set pointers */
+    file = efi_get_file(EFI_FILE_TBSHARED);
+    if ((file->size != PAGE_SIZE)||
+        (file->u.addr != (mle_base - 2*PAGE_SIZE))) {
+        printk(TBOOT_ERR"Invalid tbshared location or size,"
+               "expected: %llx (%llx) reported: %llx (%llx)\n",
+               (mle_base - PAGE_SIZE), PAGE_SIZE, file->u.addr, file->size);
+        return false;
+    }
+
+    memset(file->u.base, 0, file->size);
+    _tboot_handoff = (efi_tboot_xen_handoff_t*)file->u.base;
+    _tboot_shared = (tboot_shared_t*)(file->u.base +
+                                      sizeof(efi_tboot_xen_handoff_t));
+
+    /* TODO validate other locations */
+
+    return true;
+}
+
+static struct {
     efi_file_select_t  file;
     const char        *item;
-};
-
-static struct file_item_sel file_list[] = {
+} file_list[] = {
     {EFI_FILE_KERNEL, ITEM_KERNEL},
     {EFI_FILE_RAMDISK, ITEM_RAMDISK},
     {EFI_FILE_XSM, ITEM_XSM},
@@ -208,7 +269,7 @@ bool efi_load_boot_files(void)
 
     /*
      * First Xen - Xen is special because we use the EFI loader to load the
-     * PE image into memory.
+     * PE image into memory. This is what will be measured before executing.
      */
     cfg = efi_get_file(EFI_FILE_TBOOT_CONFIG_PARSED);
     file = efi_get_file(EFI_FILE_XEN);
@@ -523,7 +584,8 @@ static bool efi_setup_memory_blocks(void)
 
     if ((sizeof(efi_tboot_xen_handoff_t) + sizeof(tboot_shared_t))
         > PAGE_SIZE) {
-        printk("Shared TBOOT information greater than PAGE_SIZE!\n");
+        printk("Shared TBOOT information greater than PAGE_SIZE! 0x%x 0x%x\n",
+               sizeof(efi_tboot_xen_handoff_t), sizeof(tboot_shared_t));
         return false;
     }
 
@@ -532,10 +594,6 @@ static bool efi_setup_memory_blocks(void)
 
     memmap->base = tbshared->u.base + PAGE_SIZE;
     memmap->size = PAGE_SIZE;
-
-    _tboot_handoff = (efi_tboot_xen_handoff_t*)tbshared->u.base;
-    _tboot_shared = (tboot_shared_t*)(tbshared->u.base +
-                                      sizeof(efi_tboot_xen_handoff_t));
 
     return true;
 }

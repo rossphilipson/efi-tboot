@@ -57,18 +57,19 @@
 
 typedef enum efi_file_select {
     EFI_FILE_INVALID = 0,
-    EFI_FILE_TBOOT_CONFIG,
     EFI_FILE_TBOOT_CONFIG_PARSED,
-    EFI_FILE_XEN_CONFIG,
     EFI_FILE_XEN_CONFIG_PARSED,
     EFI_FILE_PLATFORM_SINIT,
     EFI_FILE_PLATFORM_RACM,
     EFI_FILE_LCP,
     EFI_FILE_RTMEM,
-    EFI_FILE_TBSHARED,
     EFI_FILE_IMAGE,
     EFI_FILE_IMAGE_TEXT,
     EFI_FILE_IMAGE_BSS,
+    EFI_FILE_DISCARD_MARKER,
+    EFI_FILE_TBSHARED,
+    EFI_FILE_TBOOT_CONFIG,
+    EFI_FILE_XEN_CONFIG,
     EFI_FILE_XEN,
     EFI_FILE_KERNEL,
     EFI_FILE_RAMDISK,
@@ -104,5 +105,6 @@ char *efi_cfg_get_value(efi_file_t *config, const char *section,
                         const char *item);
 bool efi_split_kernel_line(void);
 bool efi_cfg_copy_tboot_path(const wchar_t *file_path);
+void efi_setup_xen_handoff(void);
 
 #endif /* __EFI_CONFIG_H__ */
