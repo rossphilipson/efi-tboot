@@ -224,6 +224,7 @@ void efi_setup_xen_handoff(void)
     _tboot_handoff->config = file->u.base;
     _tboot_handoff->config_size = file->size;
 
+    /* TODO how to validate these ?? */
     _tboot_handoff->system_table = ST;
 
     memmap = efi_get_memmap();
@@ -233,18 +234,17 @@ void efi_setup_xen_handoff(void)
     _tboot_handoff->memory_desc_ver = memmap->desc_ver;
 
     /*
-     * TODO load all the bits Xen will need:
-     *  Config info (just give xen the conf to parse) (DONE here)
-     *  E820 Reserve memory map (DONE in efi_get_ram_ranges post ML)
-     *  EFI mem map (just before EBS) in RTMEM area (DONE here)
-     *  EFI system table for RT and config tables (DONE here)
-     *  GOP stuffs (in RT data mem)
-     *  Console values (maybe?)
+     * TODO GOP and Console values (in RT data mem)
+     * This is going to be a mess because:
+     *  - there is a lot to fetch.
+     *  - modes need to be set dependend on Xen settings.
+     * We can save this misery for later.
      */
 
     /*
      * N.B. we are currently not supporting and passing:
      *  - PCI ROM information reported by XEN_FW_EFI_PCI_ROM hc.
      *  - EDD disk firmware info reported by XEN_FW_DISK_INFO hc op.
+     * This information (if anybody actually uses it) will not be available.
      */
 }

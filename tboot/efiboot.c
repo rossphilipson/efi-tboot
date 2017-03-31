@@ -63,6 +63,10 @@ static EFI_FILE_IO_INTERFACE *efi_file_system = NULL;
 static __text uint8_t tboot_config_file[EFI_MAX_CONFIG_FILE];
 static __text uint8_t xen_config_file[EFI_MAX_CONFIG_FILE];
 
+/* Store parsed  config files in the data section */
+static __data uint8_t tboot_parsed_config_file[EFI_MAX_CONFIG_FILE];
+static __data uint8_t xen_parsed_config_file[EFI_MAX_CONFIG_FILE];
+
 #ifdef EFI_DEBUG
 static void efi_debug_pause(void)
 {
@@ -184,10 +188,11 @@ again:
     return true;
 }
 
-bool efi_verify_rtmem_layout(uint64_t mle_base)
+bool efi_verify_and_restore(uint64_t mle_base)
 {
     efi_file_t *discard = efi_get_file(EFI_FILE_INVALID);
     efi_file_t *file;
+    uint64_t    size;
 
     /* Discard the config files that are no longer used post launch */
     memset(discard, 0, sizeof(efi_file_t)*EFI_FILE_DISCARD_MARKER);
@@ -216,6 +221,14 @@ bool efi_verify_rtmem_layout(uint64_t mle_base)
         return false;
     }
 
+    /* Reload and reparse the TBOOT config */
+    size = file->size;
+    memcpy(tboot_parsed_config_file, tboot_config_file, size);
+    file = efi_get_file(EFI_FILE_TBOOT_CONFIG_PARSED);
+    file->u.base = tboot_parsed_config_file;
+    file->size = size;
+    efi_cfg_pre_parse(file);
+
     file = efi_get_file(EFI_FILE_XEN_CONFIG);
     if ((file->size > EFI_MAX_CONFIG_FILE)||
         (file->u.base != xen_config_file)) {
@@ -224,6 +237,14 @@ bool efi_verify_rtmem_layout(uint64_t mle_base)
                xen_config_file, EFI_MAX_CONFIG_FILE, file->u.base, file->size);
         return false;
     }
+
+    /* Reload and reparse the Xen config */
+    size = file->size;
+    memcpy(xen_parsed_config_file, xen_config_file, size);
+    file = efi_get_file(EFI_FILE_XEN_CONFIG_PARSED);
+    file->u.base = xen_parsed_config_file;
+    file->size = size;
+    efi_cfg_pre_parse(file);
 
     /* Validate TBOOT shared values and set pointers */
     file = efi_get_file(EFI_FILE_TBSHARED);
@@ -508,17 +529,20 @@ static EFI_STATUS efi_load_configs(void)
         goto err;
     }
 
-    /* Make a copy of the raw TBOOT config in the MLE */
+    /* Make a copy of the raw TBOOT config in .text */
     memcpy(tboot_config_file, (void*)addr, size);
     cfg = efi_get_file(EFI_FILE_TBOOT_CONFIG);
     cfg->u.base = tboot_config_file;
     cfg->size = size;
 
-    /* Parse original */
+    /* Make a copy of the parsed TBOOT config in .data */
+    memcpy(tboot_parsed_config_file, (void*)addr, size);
     cfg = efi_get_file(EFI_FILE_TBOOT_CONFIG_PARSED);
-    cfg->u.addr = addr;
+    cfg->u.base = tboot_parsed_config_file;
     cfg->size = size;
     efi_cfg_pre_parse(cfg);
+
+    BS->FreePool((void*)addr);
     BS->FreePool(file_path);
 
     /* Get file path for Xen image and config */
@@ -548,17 +572,20 @@ static EFI_STATUS efi_load_configs(void)
         goto err;
     }
 
-    /* Make a copy of the raw Xen config in the MLE */
+    /* Make a copy of the raw Xen config in .text */
     memcpy(xen_config_file, (void*)addr, size);
     cfg = efi_get_file(EFI_FILE_XEN_CONFIG);
     cfg->u.base = xen_config_file;
     cfg->size = size;
 
-    /* Parse original */
+    /* Make a copy of the parsed Xen config in .data */
+    memcpy(xen_parsed_config_file, (void*)addr, size);
     cfg = efi_get_file(EFI_FILE_XEN_CONFIG_PARSED);
-    cfg->u.addr = addr;
+    cfg->u.base = xen_parsed_config_file;
     cfg->size = size;
     efi_cfg_pre_parse(cfg);
+
+    BS->FreePool((void*)addr);
     BS->FreePool(file_path);
 
     return EFI_SUCCESS;

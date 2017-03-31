@@ -382,7 +382,7 @@ void post_launch(uint64_t mle_base)
     printk(TBOOT_INFO"   %s\n", TBOOT_CHANGESET);
     printk(TBOOT_INFO"*********************************************\n");
 
-    if (!efi_verify_rtmem_layout(mle_base))
+    if (!efi_verify_and_restore(mle_base))
         apply_policy(TB_ERR_FATAL);
 
     printk(TBOOT_INFO"TBOOT handoff: %p (%x) shared: %p (%x)\n",
