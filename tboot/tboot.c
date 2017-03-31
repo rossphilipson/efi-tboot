@@ -212,12 +212,10 @@ void begin_launch(void)
 
     /* on pre-SENTER boot, copy command line to buffer in tboot image
      * (so that it will be measured); buffer must be 0 -filled */
-    if ( !is_launched() && !s3_flag ) {
-        memset(g_cmdline, '\0', sizeof(g_cmdline));
-        cmdline = efi_cfg_get_value(cfg, SECTION_TBOOT, ITEM_OPTIONS);
-        if (cmdline)
-            strncpy(g_cmdline, cmdline, sizeof(g_cmdline)-1);
-    }
+    memset(g_cmdline, '\0', sizeof(g_cmdline));
+    cmdline = efi_cfg_get_value(cfg, SECTION_TBOOT, ITEM_OPTIONS);
+    if (cmdline)
+        strncpy(g_cmdline, cmdline, sizeof(g_cmdline)-1);
 
     /* always parse cmdline */
     tboot_parse_cmdline(false);
@@ -262,7 +260,7 @@ void begin_launch(void)
         printk(TBOOT_INFO"entry processor is not BSP\n");
         apply_policy(TB_ERR_FATAL);
     }
-    printk(TBOOT_INFO"BSP is cpu %u\n", get_apicid());
+    printk(TBOOT_INFO"BSP is CPU %u\n", get_apicid());
 
     /*
      * TODO e820 copied here but TBOOT will not be using it. Xen will have to
@@ -369,6 +367,10 @@ void begin_launch(void)
 
 void post_launch(uint64_t mle_base)
 {
+    tb_error_t err;
+
+    /* TODO figure out how to have common pre/post/s3 launch code */
+
     /* always load cmdline defaults */
     tboot_parse_cmdline(true);
 
@@ -389,22 +391,50 @@ void post_launch(uint64_t mle_base)
            _tboot_handoff, sizeof(efi_tboot_xen_handoff_t),
            _tboot_shared, sizeof(tboot_shared_t));
 
+    /* init the bits needed to run APs in mini-VMs */
+    init_vmcs_addrs();
+
+    /* we should only be executing on the BSP */
+    if ( !(rdmsr(MSR_APICBASE) & APICBASE_BSP) ) {
+        printk(TBOOT_INFO"entry processor is not BSP\n");
+        apply_policy(TB_ERR_FATAL);
+    }
+    printk(TBOOT_INFO"MLE BSP is CPU %u\n", get_apicid());
+
+    /* Post ML setup TPM information again */
+    if (!tpm_detect())
+        apply_policy(TB_ERR_TPM_NOT_READY);
+
+    /* read tboot verified launch control policy from TPM-NV (will use default if none in TPM-NV) */
+    err = set_policy();
+    apply_policy(err);
+
+    /*
+     * Need to verify that platform supports TXT before we can check error
+     * Note this is done post launch again because it reload configs etc.
+     */
+    err = supports_txt();
+    apply_policy(err);
+
     /* scan memory map again post ML */
     if (!efi_scan_memory_map())
         apply_policy(TB_ERR_FATAL);
 
-    /* init the bits needed to run APs in mini-VMs */
-    init_vmcs_addrs();
+    /*
+     * TODO should there be a different version of txt_verify_platform
+     * that is specific to post launch. The existin one is more for pre
+     * launch.
+     */
 
-    /* TODO figure out how to have common pre/post/s3 launch code */
-
-    /* TODO reparse and load configs stored in the MLE */
+    /* init MLE/kernel shared data page early, .num_in_wfs used in ap wakeup*/
+    _tboot_shared->num_in_wfs = 0;
 
     /* TODO measure Xen image before transferring control back to it */
 
+    /* Setup handoff information and call Xen */
     efi_setup_xen_handoff();
-
-    /* TODO Start Xen here */
+    if (!efi_call_kernel())
+        apply_policy(TB_ERR_FATAL); /* Should not get here */
 }
 
 void s3_launch(void)

@@ -86,6 +86,7 @@ typedef struct __packed efi_tboot_xen_handoff {
     uint64_t       memory_desc_ver;
     uint64_t       reserve_map_count;
     reserve_map_t  reserve_map[TB_RESMEM_BLOCKS];
+    void          *tboot_shared;
 } efi_tboot_xen_handoff_t;
 
 /* The TBOOT handoff structure in RT mem */
@@ -104,11 +105,8 @@ void *efi_get_pe_section(const char *name, void *image_base,
 void *efi_get_pe_export(const char *name, void *image_base);
 
 bool efi_load_txt_files(void);
-
 bool efi_load_boot_files(void);
-
 bool efi_exit_boot_services(void);
-
 void efi_shutdown_system(uint32_t shutdown_type);
 
 /* The following routines are only available after EBS */
@@ -118,6 +116,7 @@ bool efi_add_resmap_entry(uint64_t addr, uint64_t length);
 bool efi_get_ram_ranges(uint64_t *min_lo_ram, uint64_t *max_lo_ram,
                         uint64_t *min_hi_ram, uint64_t *max_hi_ram);
 bool efi_verify_and_restore(uint64_t mle_base);
+bool efi_call_kernel(void);
 
 /* The following routines are unavailable after EBS */
 

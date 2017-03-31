@@ -380,9 +380,12 @@ ENTRY(vmx_asm_vmexit_handler)
 	/* fall through to loop if callee returns (shouldn't happen) */
 
 ENTRY(_mini_guest)
-	pause
-	/* TODO rest */
-	ret
+1:	pause
+	cmpq	$0, (aps_exit_guest)
+	je	1b
+	/* VMCALL out of guest */
+	.byte 0x0f,0x01,0xc1
+	jmp	1b
 
 ENTRY(bsp_stack_ref)
 	leaq	bsp_stack(%rip), %rax

@@ -43,6 +43,8 @@
 #include <eficore.h>
 #include <eficonfig.h>
 #include <printk.h>
+#include <tb_error.h>
+#include <tboot.h>
 
 /* Memory based file storage */
 static efi_file_t __data efi_files[EFI_FILE_MAX];
@@ -223,6 +225,7 @@ void efi_setup_xen_handoff(void)
     file = efi_get_file(EFI_FILE_XEN_CONFIG);
     _tboot_handoff->config = file->u.base;
     _tboot_handoff->config_size = file->size;
+    _tboot_handoff->tboot_shared = _tboot_shared;
 
     /* TODO how to validate these ?? */
     _tboot_handoff->system_table = ST;

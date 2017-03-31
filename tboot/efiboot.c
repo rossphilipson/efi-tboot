@@ -159,6 +159,28 @@ out:
     ST->RuntimeServices->ResetSystem(EfiResetShutdown, EFI_OUT_OF_RESOURCES, 0, NULL);
 }
 
+bool efi_call_kernel(void)
+{
+    efi_file_t *xen = efi_get_file(EFI_FILE_XEN);
+    uint64_t    efi_mlstart_ptr;
+
+    /* This is the loaded Xen PE image, find our entry point */
+    efi_mlstart_ptr = (uint64_t)efi_get_pe_export("efi_mlstart",
+                                                  xen->u.base);
+
+    if (!efi_mlstart_ptr) {
+        printk("Failed to locate Xen entry point\n");
+        return false;
+    }
+
+    __asm__ __volatile__ (
+                   "call *%%rax\n\t"
+                   : : "c" (_tboot_handoff), "a" (efi_mlstart_ptr));
+
+    /* If we are still here then someting failed anyway */
+    return false;
+}
+
 bool efi_exit_boot_services(void)
 {
     EFI_STATUS    status;
