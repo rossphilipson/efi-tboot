@@ -52,8 +52,9 @@ static efi_file_t __data efi_files[EFI_FILE_MAX];
 /* The EFI memory map just after EBS */
 static efi_memmap_t __data *efi_memmap;
 
-/* Root path to TBOOT image home */
+/* Root paths to TBOOT and Xen home */
 static wchar_t __data tboot_dir[EFI_MAX_PATH];
+static wchar_t __data xen_dir[EFI_MAX_PATH];
 
 static const char __data *kernel_cmdline = "";
 
@@ -63,6 +64,7 @@ static bool __data postebs = false;
 void efi_cfg_init(void)
 {
     memset(&tboot_dir[0], 0, EFI_MAX_PATH*sizeof(wchar_t));
+    memset(&xen_dir[0], 0, EFI_MAX_PATH*sizeof(wchar_t));
     memset(&efi_files[0], 0, EFI_FILE_MAX*sizeof(efi_file_t));
 }
 
@@ -86,9 +88,14 @@ bool efi_is_postebs(void)
     return postebs;
 }
 
-const wchar_t *efi_get_tboot_path(void)
+const wchar_t *efi_get_tboot_dir(void)
 {
     return &tboot_dir[0];
+}
+
+const wchar_t *efi_get_xen_dir(void)
+{
+    return &xen_dir[0];
 }
 
 const char *efi_get_kernel_cmdline(void)
@@ -181,17 +188,18 @@ bool efi_split_kernel_line(void)
     return true;
 }
 
-bool efi_cfg_copy_tboot_path(const wchar_t *file_path)
+bool efi_cfg_copy_home_dir(const wchar_t *file_path, bool is_tboot)
 {
-    uint64_t len = wcslen(file_path);
-    wchar_t *ptr = tboot_dir + len;
+    uint64_t len  = wcslen(file_path);
+    wchar_t *home = (is_tboot ? tboot_dir : xen_dir);
+    wchar_t *ptr  = home + len;
 
     if (len >= EFI_MAX_PATH)
         return false;
 
-    memcpy(tboot_dir, file_path, len*sizeof(wchar_t));
+    memcpy(home, file_path, len*sizeof(wchar_t));
 
-    while (ptr >= tboot_dir) {
+    while (ptr >= home) {
         if (*ptr == L'\\') {
             *(ptr + 1) = L'\0';
             return true;

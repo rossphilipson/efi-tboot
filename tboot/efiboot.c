@@ -311,7 +311,7 @@ bool efi_load_boot_files(void)
     efi_file_t       *cfg;
     efi_file_t       *file;
     int               i;
-    char             *section, *path;
+    char             *section, *fname;
 
     /*
      * First Xen - Xen is special because we use the EFI loader to load the
@@ -319,9 +319,9 @@ bool efi_load_boot_files(void)
      */
     cfg = efi_get_file(EFI_FILE_TBOOT_CONFIG_PARSED);
     file = efi_get_file(EFI_FILE_XEN);
-    path = efi_cfg_get_value(cfg, SECTION_TBOOT, ITEM_XENPATH);
+    fname = efi_cfg_get_value(cfg, SECTION_TBOOT, ITEM_XENPATH);
 
-    file_path = atow_alloc(path);
+    file_path = atow_alloc(fname);
     if (!file_path) {
         printk("Failed to allocate buffer for Xen file\n");
         return false;
@@ -329,7 +329,7 @@ bool efi_load_boot_files(void)
 
     dev_path = efi_get_device_path(file_path, parent_device_handle);
     if (dev_path == NULL) {
-        printk("Failed to get device path for file %s\n", path);
+        printk("Failed to get device path for file %s\n", fname);
         BS->FreePool(file_path);
         return false;
     }
@@ -357,7 +357,7 @@ bool efi_load_boot_files(void)
 
     file->u.base = loaded_image->ImageBase;
     file->size = loaded_image->ImageSize;
-    efi_debug_print_s(MAKE_STR(ITEM_XENPATH), path);
+    efi_debug_print_s(MAKE_STR(ITEM_XENPATH), fname);
 
     /* Next it is the kernel and optionally the ramdisk, xsm and ucode files */
     cfg = efi_get_file(EFI_FILE_XEN_CONFIG_PARSED);
@@ -376,11 +376,25 @@ bool efi_load_boot_files(void)
 
     for (i = 0; i < 4; i++) {
         file = efi_get_file(file_list[i].file);
-        path = efi_cfg_get_value(cfg, section, file_list[i].item);
+        fname = efi_cfg_get_value(cfg, section, file_list[i].item);
 
-        file_path = atow_alloc(path);
+        if (!fname) {
+            if (file_list[i].file == EFI_FILE_KERNEL) {
+                printk("Failed to read kernel file: %s  - status: %d\n",
+                       fname, status);
+                return false;
+            }
+            else {
+                /* Missing ramdisk, maybe. Missing xsm or ucode is ok. */
+                printk("Could not read boot file: %s  - status: %d\n",
+                       fname, status);
+                continue;
+            }
+        }
+
+        file_path = atow_cat(efi_get_xen_dir(), fname);
         if (!file_path) {
-            printk("Failed to allocate buffer for file: %s\n", path);
+            printk("Failed to allocate buffer for file: %s\n", fname);
             return false;
         }
 
@@ -391,19 +405,13 @@ bool efi_load_boot_files(void)
                                &file->u.addr);
         BS->FreePool(file_path);
         if (EFI_ERROR(status)) {
-            if (file_list[i].file == EFI_FILE_KERNEL) {
-                printk("Failed to read kernel file: %s  - status: %d\n",
-                       path, status);
-                return false;
-            }
-            else {
-                /* Missing ramdisk, maybe. Missing xsm or ucode is ok. */
-                printk("Could not read boot file: %s  - status: %d\n",
-                       path, status);
-                continue;
-            }
+            /* A file was specified in the config and not there, fishy... */
+            printk("Failed to read kernel file: %s  - status: %d\n",
+                   fname, status);
+            return false;
         }
-        efi_debug_print_s(file_list[i].item, path);
+
+        efi_debug_print_s(file_list[i].item, fname);
     }
 
     return true;
@@ -457,7 +465,7 @@ bool efi_load_txt_files(void)
         if (!value)
             break;
 
-        file_path = atow_cat(efi_get_tboot_path(), value);
+        file_path = atow_cat(efi_get_tboot_dir(), value);
         if (!file_path) {
             printk("Failed to allocate buffer for ACM file name\n");
             goto err;
@@ -529,9 +537,9 @@ static EFI_STATUS efi_load_configs(void)
     }
 
     /* Save a copy of the TBOOT dir for later */
-    if (!efi_cfg_copy_tboot_path(file_path)) {
+    if (!efi_cfg_copy_home_dir(file_path, true)) {
         status = EFI_INVALID_PARAMETER;
-        printk("Failed to save TBOOT path - status: %d\n", status);
+        printk("Failed to save TBOOT home dir - status: %d\n", status);
         goto err;
     }
 
@@ -575,6 +583,13 @@ static EFI_STATUS efi_load_configs(void)
     if (!file_path) {
         printk("Failed to allocate buffer for Xen config file\n");
         status = EFI_OUT_OF_RESOURCES;
+        goto err;
+    }
+
+    /* Save a copy of the Xen dir for later */
+    if (!efi_cfg_copy_home_dir(file_path, false)) {
+        status = EFI_INVALID_PARAMETER;
+        printk("Failed to save Xen home dir - status: %d\n", status);
         goto err;
     }
 

@@ -98,13 +98,14 @@ efi_file_t *efi_get_file(efi_file_select_t sel);
 efi_memmap_t *efi_get_memmap(void);
 void efi_set_postebs(void);
 bool efi_is_postebs(void);
-const wchar_t *efi_get_tboot_path(void);
+const wchar_t *efi_get_tboot_dir(void);
+const wchar_t *efi_get_xen_dir(void);
 const char *efi_get_kernel_cmdline(void);
 void efi_cfg_pre_parse(efi_file_t *config);
 char *efi_cfg_get_value(efi_file_t *config, const char *section,
                         const char *item);
 bool efi_split_kernel_line(void);
-bool efi_cfg_copy_tboot_path(const wchar_t *file_path);
+bool efi_cfg_copy_home_dir(const wchar_t *file_path, bool is_tboot);
 void efi_setup_xen_handoff(void);
 
 #endif /* __EFI_CONFIG_H__ */
