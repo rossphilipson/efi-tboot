@@ -270,11 +270,12 @@ bool efi_verify_and_restore(uint64_t mle_base)
 
     /* Validate TBOOT shared values and set pointers */
     file = efi_get_file(EFI_FILE_TBSHARED);
-    if ((file->size != PAGE_SIZE)||
-        (file->u.addr != (mle_base - 2*PAGE_SIZE))) {
+    if ((file->size != TBOOT_TBSHARED_SIZE)||
+        (file->u.addr != (mle_base - 3*PAGE_SIZE))) {
         printk(TBOOT_ERR"Invalid tbshared location or size,"
                "expected: %llx (%llx) reported: %llx (%llx)\n",
-               (mle_base - PAGE_SIZE), PAGE_SIZE, file->u.addr, file->size);
+               (mle_base - 3*PAGE_SIZE), TBOOT_TBSHARED_SIZE,
+               file->u.addr, file->size);
         return false;
     }
 
@@ -282,6 +283,8 @@ bool efi_verify_and_restore(uint64_t mle_base)
     _tboot_handoff = (efi_tboot_xen_handoff_t*)file->u.base;
     _tboot_shared = (tboot_shared_t*)(file->u.base +
                                       sizeof(efi_tboot_xen_handoff_t));
+
+    /* TODO what was going on the 2nd shared page? */
 
     /* TODO validate other locations */
 
@@ -639,7 +642,7 @@ static bool efi_setup_memory_blocks(void)
     }
 
     tbshared->u.base = rtmem->u.base + TBOOT_PLEPT_SIZE + TBOOT_MLEPT_SIZE;
-    tbshared->size = PAGE_SIZE;
+    tbshared->size = TBOOT_TBSHARED_SIZE;
 
     memmap->base = tbshared->u.base + PAGE_SIZE;
     memmap->size = PAGE_SIZE;
