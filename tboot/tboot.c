@@ -232,6 +232,9 @@ void begin_launch(void)
 
     printk(TBOOT_INFO"command line: %s\n", g_cmdline);
 
+    /* Have to load addresses for TPM interface functions early */
+    tpm_reloc_init();
+
     /* This has to be done early or all GETSEC ops will fail */
     txt_enable_smx();
 
@@ -386,6 +389,9 @@ void post_launch(uint64_t mle_base)
     printk(TBOOT_INFO"******************** MLE ********************\n");
     printk(TBOOT_INFO"   %s\n", TBOOT_CHANGESET);
     printk(TBOOT_INFO"*********************************************\n");
+
+    /* Re-init all the TPM pointers post ML */
+    tpm_reloc_init();
 
     if (!efi_verify_and_restore(mle_base))
         apply_policy(TB_ERR_FATAL);

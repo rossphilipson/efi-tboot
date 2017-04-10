@@ -1919,28 +1919,43 @@ static bool tpm12_check(void)
     return ( ret == TPM_BAD_ORDINAL );
 }
 
-struct tpm_if tpm_12_if = {
-    .init = tpm12_init,
-    .pcr_read = tpm12_pcr_read,
-    .pcr_extend = tpm12_pcr_extend,
-    .pcr_reset = tpm12_pcr_reset,
-    .nv_read = tpm12_nv_read_value,
-    .nv_write = tpm12_nv_write_value,
-    .get_nvindex_size = tpm12_get_nvindex_size,
-    .get_nvindex_permission = tpm12_get_nvindex_permission,
-    .seal = tpm12_seal,
-    .unseal = tpm12_unseal,
-    .verify_creation = tpm12_verify_creation,
-    .get_random = tpm12_get_random,
-    .save_state = tpm12_save_state,
-    .cap_pcrs = tpm12_cap_pcrs,
-    .check = tpm12_check,
-    .cur_loc = 0,
-    .timeout.timeout_a = TIMEOUT_A,
-    .timeout.timeout_b = TIMEOUT_B,
-    .timeout.timeout_c = TIMEOUT_C,
-    .timeout.timeout_d = TIMEOUT_D,
-};
+static struct tpm_if __data tpm_12_if;
+
+struct tpm_if *tpm12_get_if(void)
+{
+    return &tpm_12_if;
+}
+
+#define init_tpm12_function(f, m) \
+{                                 \
+    uint64_t r;                   \
+    lea_reference(f, r);          \
+    tpm_12_if.m = (void*)r;       \
+}
+
+void tpm12_reloc_init(void)
+{
+    init_tpm12_function(tpm12_init, init);
+    init_tpm12_function(tpm12_pcr_read, pcr_read);
+    init_tpm12_function(tpm12_pcr_extend, pcr_extend);
+    init_tpm12_function(tpm12_pcr_reset, pcr_reset);
+    init_tpm12_function(tpm12_nv_read_value, nv_read);
+    init_tpm12_function(tpm12_nv_write_value, nv_write);
+    init_tpm12_function(tpm12_get_nvindex_size, get_nvindex_size);
+    init_tpm12_function(tpm12_get_nvindex_permission, get_nvindex_permission);
+    init_tpm12_function(tpm12_seal, seal);
+    init_tpm12_function(tpm12_unseal, unseal);
+    init_tpm12_function(tpm12_verify_creation, verify_creation);
+    init_tpm12_function(tpm12_get_random, get_random);
+    init_tpm12_function(tpm12_save_state, save_state);
+    init_tpm12_function(tpm12_cap_pcrs, cap_pcrs);
+    init_tpm12_function(tpm12_check, check);
+    tpm_12_if.cur_loc = 0;
+    tpm_12_if.timeout.timeout_a = TIMEOUT_A;
+    tpm_12_if.timeout.timeout_b = TIMEOUT_B;
+    tpm_12_if.timeout.timeout_c = TIMEOUT_C;
+    tpm_12_if.timeout.timeout_d = TIMEOUT_D;
+}
 
 /*
  * Local variables:

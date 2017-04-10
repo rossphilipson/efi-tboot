@@ -2379,24 +2379,38 @@ out:
     return true;
 }
 
-struct tpm_if tpm_20_if = {
-    .init = tpm20_init,
-    .pcr_read = tpm20_pcr_read,
-    .pcr_extend = tpm20_pcr_extend,
-    .hash = tpm20_hash,
-    .pcr_reset = tpm20_pcr_reset,
-    .nv_read = tpm20_nv_read,
-    .nv_write = tpm20_nv_write,
-    .get_nvindex_size = tpm20_get_nvindex_size,
-    .get_nvindex_permission = tpm20_get_nvindex_permission,
-    .seal = tpm20_seal,
-    .unseal = tpm20_unseal,
-    .verify_creation = tpm20_verify_creation,
-    .get_random = tpm20_get_random,
-    .save_state = tpm20_save_state,
-    .cap_pcrs = tpm20_cap_pcrs,
-};
+static struct tpm_if __data tpm_20_if;
 
+struct tpm_if *tpm20_get_if(void)
+{
+    return &tpm_20_if;
+}
+
+#define init_tpm20_function(f, m) \
+{                                 \
+    uint64_t r;                   \
+    lea_reference(f, r);          \
+    tpm_20_if.m = (void*)r;       \
+}
+
+void tpm20_reloc_init(void)
+{
+    init_tpm20_function(tpm20_init, init);
+    init_tpm20_function(tpm20_pcr_read, pcr_read);
+    init_tpm20_function(tpm20_pcr_extend, pcr_extend);
+    init_tpm20_function(tpm20_hash, hash);
+    init_tpm20_function(tpm20_pcr_reset, pcr_reset);
+    init_tpm20_function(tpm20_nv_read, nv_read);
+    init_tpm20_function(tpm20_nv_write, nv_write);
+    init_tpm20_function(tpm20_get_nvindex_size, get_nvindex_size);
+    init_tpm20_function(tpm20_get_nvindex_permission, get_nvindex_permission);
+    init_tpm20_function(tpm20_seal, seal);
+    init_tpm20_function(tpm20_unseal, unseal);
+    init_tpm20_function(tpm20_verify_creation, verify_creation);
+    init_tpm20_function(tpm20_get_random, get_random);
+    init_tpm20_function(tpm20_save_state, save_state);
+    init_tpm20_function(tpm20_cap_pcrs, cap_pcrs);
+}
 
 /*
  * Local variables:

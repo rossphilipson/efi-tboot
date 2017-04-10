@@ -387,7 +387,7 @@ bool efi_load_boot_files(void)
             else {
                 /* Missing ramdisk, maybe. Missing xsm or ucode is ok. */
                 printk("Could not read boot file: %s  - status: %d\n",
-                       fname, status);
+                       file_list[i].item, status);
                 continue;
             }
         }
