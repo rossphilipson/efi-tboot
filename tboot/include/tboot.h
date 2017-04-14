@@ -153,8 +153,8 @@ typedef struct {
 #define TBOOT_LOG_UUID   {0xc0192526, 0x6b30, 0x4db4, 0x844c, \
                              {0xa3, 0xe9, 0x53, 0xb8, 0x81, 0x74 }}
 
-/* The tboot_shared page */
-tboot_shared_t _tboot_shared;
+/* The TBOOT shared structure in RT mem */
+tboot_shared_t *_tboot_shared;
 
 long s3_flag;
 

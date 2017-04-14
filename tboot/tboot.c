@@ -75,6 +75,9 @@
 
 __data long s3_flag = 0;
 
+/* MLE/kernel shared data structure */
+tboot_shared_t *_tboot_shared;
+
 #ifdef EFI_DEBUG
 static void efi_debug_print_files(void)
 {
@@ -192,7 +195,7 @@ static void shutdown_system(uint32_t);
 void check_racm_result(void)
 {
     txt_get_racm_error();
-    shutdown_system(TB_SHUTDOWN_HALT); 
+    shutdown_system(TB_SHUTDOWN_HALT);
 }
 
 void begin_initial_launch(void)
@@ -235,6 +238,10 @@ void begin_initial_launch(void)
 
     efi_debug_print_files();
 
+    /* Load the TXT platform SINIT, RACM and LCP */
+    if ( !efi_load_txt_files() )
+        apply_policy(TB_ERR_FATAL);
+
     /* if telled to check revocation acm result, go with simplified path */
     if ( get_tboot_call_racm_check() )
         check_racm_result(); /* never return */
@@ -243,7 +250,7 @@ void begin_initial_launch(void)
     if ( s3_flag ) printk(TBOOT_INFO"Resume from S3...\n");
 
     /* clear resume vector on S3 resume so any resets will not use it */
-    /* TODO if ( !is_launched() && s3_flag )        set_s3_resume_vector(&_tboot_shared.acpi_sinfo, 0);*/
+    /* TODO if ( !is_launched() && s3_flag )        set_s3_resume_vector(&_tboot_shared->acpi_sinfo, 0);*/
 
     /* we should only be executing on the BSP */
     if ( !(rdmsr(MSR_APICBASE) & APICBASE_BSP) ) {
@@ -388,6 +395,8 @@ void post_launch(void)
     /* init the bits needed to run APs in mini-VMs */
     init_vmcs_addrs();
 
+    /* TODO figure out how to have common pre/post/s3 launch code */
+
     /* TODO reparse and load configs stored in the MLE */
 
     /* TODO measure the memory map */
@@ -419,11 +428,11 @@ static void shutdown_system(uint32_t shutdown_type)
         case TB_SHUTDOWN_S3:
             copy_s3_wakeup_entry();
             /* write our S3 resume vector to ACPI resume addr */
-            /* TODO handle S3 later set_s3_resume_vector(&_tboot_shared.acpi_sinfo,  TBOOT_S3_WAKEUP_ADDR);*/
+            /* TODO handle S3 later set_s3_resume_vector(&_tboot_shared->acpi_sinfo,  TBOOT_S3_WAKEUP_ADDR);*/
             /* fall through for rest of Sx handling */
         case TB_SHUTDOWN_S4:
         case TB_SHUTDOWN_S5:
-            machine_sleep(&_tboot_shared.acpi_sinfo);
+            machine_sleep(&_tboot_shared->acpi_sinfo);
             /* if machine_sleep() fails, fall through to reset */
 
         case TB_SHUTDOWN_REBOOT:
@@ -465,7 +474,7 @@ void handle_exception(uint64_t error_code)
     outb(0xcf9, 0x0a);
     outb(0xcf9, 0x0e);
 
-    _tboot_shared.shutdown_type = TB_SHUTDOWN_REBOOT;
+    _tboot_shared->shutdown_type = TB_SHUTDOWN_REBOOT;
     shutdown();
 }
 

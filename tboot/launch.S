@@ -447,18 +447,6 @@ _bss_size:
 .section .rdata
 	.align PAGE_SIZE, 0
 
-/*
- * shared data page with kernel (i.e. Xen)
- * (put at end so that not split e820 region for tboot)
- */
-.section .tbootsh,"w"
-	.align PAGE_SIZE, 0
-
-	.globl _tboot_shared
-_tboot_shared:
-	.fill PAGE_SIZE,1,0
-	.align PAGE_SIZE, 0
-
 .section .bss
 	.align PAGE_SIZE, 0
 

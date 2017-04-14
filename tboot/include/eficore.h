@@ -65,6 +65,8 @@ EFI_GUID Acpi20TableGuid;
 EFI_GUID SMBIOSTableGuid;
 EFI_GUID TbootXenGuid;
 
+/* TODO maybe take resmap out of shared and pass a 2nd param? */
+
 typedef void (*post_launch_t)(void *ets);
 
 typedef struct __packed efi_xen_tboot_data {
@@ -98,6 +100,8 @@ uint8_t *efi_get_rsdp(void);
 void *efi_get_pe_section(const char *name, void *image_base,
                          uint64_t *size_out);
 void *efi_get_pe_export(const char *name, void *image_base);
+
+bool efi_load_txt_files(void);
 
 void efi_shutdown_system(uint32_t shutdown_type);
 

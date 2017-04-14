@@ -157,13 +157,13 @@ bool efi_add_resmap_entry(uint64_t addr, uint64_t length)
      * copy of the E820 it gives to dom0. We don't do E820 around these parts.
      */
 
-    if (_tboot_shared.reserve_map_count >= TB_RESMEM_BLOCKS) {
+    if (_tboot_shared->reserve_map_count >= TB_RESMEM_BLOCKS) {
         printk(TBOOT_ERR"Exhausted RES memory blocks\n");
         return false;
     }
 
-    _tboot_shared.reserve_map[++_tboot_shared.reserve_map_count].addr = addr;
-    _tboot_shared.reserve_map[_tboot_shared.reserve_map_count].length = length;
+    _tboot_shared->reserve_map[++_tboot_shared->reserve_map_count].addr = addr;
+    _tboot_shared->reserve_map[_tboot_shared->reserve_map_count].length = length;
 
     return true;
 }
