@@ -40,6 +40,7 @@
 
 void txt_init_mle_header(void);
 bool txt_build_mle_pagetable(void);
+void txt_enable_smx(void);
 bool txt_is_launched(void);
 bool txt_get_error(void);
 void txt_get_racm_error(void);

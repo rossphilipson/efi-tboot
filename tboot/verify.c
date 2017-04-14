@@ -210,8 +210,7 @@ tb_error_t supports_txt(void)
     }
 
     /* testing for chipset support requires enabling SMX on the processor */
-    write_cr4(read_cr4() | CR4_SMXE);
-    printk(TBOOT_INFO"SMX is enabled\n");
+    txt_enable_smx();
 
     /*
      * verify that an TXT-capable chipset is present and

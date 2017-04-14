@@ -669,6 +669,18 @@ bool txt_is_powercycle_required(void)
     return ests.txt_reset_sts;
 }
 
+/*
+ * Make an explicit function to do this instead of as a side effect of
+ * calling supports_txt(), that makes no sense.
+ */
+void txt_enable_smx(void)
+{
+    if (!(read_cr4() & CR4_SMXE)) {
+        write_cr4(read_cr4() | CR4_SMXE);
+        printk(TBOOT_INFO"Enable SMXE in CR4\n");
+    }
+}
+
 #define ACM_MEM_TYPE_UC                 0x0100
 #define ACM_MEM_TYPE_WC                 0x0200
 #define ACM_MEM_TYPE_WT                 0x1000

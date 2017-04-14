@@ -233,6 +233,9 @@ void begin_initial_launch(void)
 
     printk(TBOOT_INFO"command line: %s\n", g_cmdline);
 
+    /* this has to be done early or all GETSEC ops will fail */
+    txt_enable_smx();
+
     /* DEBUG */
     print_system_values();
 
