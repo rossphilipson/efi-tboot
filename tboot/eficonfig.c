@@ -214,7 +214,7 @@ bool efi_cfg_copy_tboot_path(const wchar_t *file_path)
     return false;
 }
 
-/* TODO refactor */
+/* TODO refactor and add in XSM and UCODE */
 
 bool efi_store_xen_tboot_data(efi_xen_tboot_data_t *xtd)
 {

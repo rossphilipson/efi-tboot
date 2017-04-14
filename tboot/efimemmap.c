@@ -193,6 +193,10 @@ static void get_highest_sized_ram(uint64_t size, uint64_t limit,
     *ram_size = last_fit_size;
 }
 
+/*
+ * This is called pre-ML by init_txt_heap and post-ML by verify_vtd_pmrs.
+ * During the post-ML phase the reserve map for Xen is built.
+ */
 bool efi_get_ram_ranges(uint64_t *min_lo_ram, uint64_t *max_lo_ram,
                         uint64_t *min_hi_ram, uint64_t *max_hi_ram)
 {

@@ -111,6 +111,7 @@ bool efi_scan_memory_map(void);
 bool efi_add_resmap_entry(uint64_t addr, uint64_t length);
 bool efi_get_ram_ranges(uint64_t *min_lo_ram, uint64_t *max_lo_ram,
                         uint64_t *min_hi_ram, uint64_t *max_hi_ram);
+bool efi_verify_and_restore(uint64_t mle_base);
 
 /* The following routines are unavailable after EBS */
 

@@ -357,11 +357,12 @@ void begin_launch(efi_xen_tboot_data_t *xtd)
     /* DEBUG */
     print_system_values();
 
-    if ( !efi_scan_memory_map() )
-        apply_policy(TB_ERR_FATAL);
-
     /* DEBUG */
     /*dump_page_tables();*/
+
+    /* scan memory once pre-launch */
+    if ( !efi_scan_memory_map() )
+        apply_policy(TB_ERR_FATAL);
 
     /* make the CPU ready for measured launch */
     if ( !prepare_cpu() )
@@ -377,7 +378,7 @@ void begin_launch(efi_xen_tboot_data_t *xtd)
      */
 }
 
-void post_launch(void)
+void post_launch(uint64_t mle_base)
 {
     /* always load cmdline defaults */
     tboot_parse_cmdline(true);
@@ -392,6 +393,16 @@ void post_launch(void)
     printk(TBOOT_INFO"   %s\n", TBOOT_CHANGESET);
     printk(TBOOT_INFO"*********************************************\n");
 
+    if (!efi_verify_and_restore(mle_base))
+        apply_policy(TB_ERR_FATAL);
+
+    printk(TBOOT_INFO"TBOOT shared: %p (%x)\n",
+           _tboot_shared, sizeof(tboot_shared_t));
+
+    /* scan memory map again post ML */
+    if (!efi_scan_memory_map())
+        apply_policy(TB_ERR_FATAL);
+
     /* init the bits needed to run APs in mini-VMs */
     init_vmcs_addrs();
 
@@ -400,8 +411,6 @@ void post_launch(void)
     /* TODO reparse and load configs stored in the MLE */
 
     /* TODO measure the memory map */
-
-    /* TODO call efi_scan_memory_map again after measured launch to rebuild map */
 
     /* TODO pass Xen a new memory map after it has been reconciled w/ MDRs */
 

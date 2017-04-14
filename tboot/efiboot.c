@@ -61,6 +61,10 @@ static EFI_FILE_IO_INTERFACE *efi_file_system = NULL;
 static __text uint8_t tboot_config_file[EFI_MAX_CONFIG_FILE];
 static __text uint8_t xen_config_file[EFI_MAX_CONFIG_FILE];
 
+/* Store parsed  config files in the data section */
+static __data uint8_t tboot_parsed_config_file[EFI_MAX_CONFIG_FILE];
+static __data uint8_t xen_parsed_config_file[EFI_MAX_CONFIG_FILE];
+
 #ifdef EFI_DEBUG
 static void efi_debug_pause(void)
 {
@@ -148,6 +152,8 @@ static EFI_STATUS efi_start_next_image(const wchar_t *path)
         goto out;
     }
 
+    /* TODO need to save the loaded image values to measure */
+
     status = BS->StartImage(image_handle, NULL, NULL);
     if (EFI_ERROR(status))
         printk("Failed to start image - status: %d\n", status);
@@ -174,6 +180,85 @@ void efi_launch_kernel(void)
     /* If we are still here then someting failed anyway */
 out:
     ST->RuntimeServices->ResetSystem(EfiResetShutdown, EFI_OUT_OF_RESOURCES, 0, NULL);
+}
+
+bool efi_verify_and_restore(uint64_t mle_base)
+{
+    efi_file_t *discard = efi_get_file(EFI_FILE_INVALID);
+    efi_file_t *file;
+    uint64_t    size;
+
+    /* Discard the config files that are no longer used post launch */
+    memset(discard, 0, sizeof(efi_file_t)*EFI_FILE_DISCARD_MARKER);
+
+    /*
+     * The MLE size is stored in the .text section and was measured. All
+     * of the MLE page tables and layout including the MLE entry point was
+     * validated in launch.S. Since the MLE entry point is known to be good
+     * then the 64b page tables in CR3 are correct also.
+     *
+     * The MLE base passed here from the post launch code in launch.S was
+     * validated there. This is our known good starting point. We can validate
+     * the rest of the memory layout that we care about which is the TBOOT
+     * shared area and that the config files are in the MLE (where they were
+     * measured too).
+     */
+    printk(TBOOT_INFO"Post launch physical MLE base: %llx\n", mle_base);
+
+    /* Validate the config files point to the right locations in the MLE */
+    file = efi_get_file(EFI_FILE_TBOOT_CONFIG);
+    if ((file->size > EFI_MAX_CONFIG_FILE)||
+        (file->u.base != tboot_config_file)) {
+        printk(TBOOT_ERR"Invalid TBOOT config location or size,"
+               "expected: %p (<= %llx) reported: %p (%llx)\n",
+               tboot_config_file, EFI_MAX_CONFIG_FILE, file->u.base, file->size);
+        return false;
+    }
+
+    /* Reload and reparse the TBOOT config */
+    size = file->size;
+    memcpy(tboot_parsed_config_file, tboot_config_file, size);
+    file = efi_get_file(EFI_FILE_TBOOT_CONFIG_PARSED);
+    file->u.base = tboot_parsed_config_file;
+    file->size = size;
+    efi_cfg_pre_parse(file);
+
+    file = efi_get_file(EFI_FILE_XEN_CONFIG);
+    if ((file->size > EFI_MAX_CONFIG_FILE)||
+        (file->u.base != xen_config_file)) {
+        printk(TBOOT_ERR"Invalid Xen config location or size,"
+               "expected: %p (<= %llx) reported: %p (%llx)\n",
+               xen_config_file, EFI_MAX_CONFIG_FILE, file->u.base, file->size);
+        return false;
+    }
+
+    /* Reload and reparse the Xen config */
+    size = file->size;
+    memcpy(xen_parsed_config_file, xen_config_file, size);
+    file = efi_get_file(EFI_FILE_XEN_CONFIG_PARSED);
+    file->u.base = xen_parsed_config_file;
+    file->size = size;
+    efi_cfg_pre_parse(file);
+
+    /* Validate TBOOT shared values and set pointers */
+    file = efi_get_file(EFI_FILE_TBSHARED);
+    if ((file->size != TBOOT_TBSHARED_SIZE)||
+        (file->u.addr != (mle_base - 3*PAGE_SIZE))) {
+        printk(TBOOT_ERR"Invalid tbshared location or size,"
+               "expected: %llx (%llx) reported: %llx (%llx)\n",
+               (mle_base - 3*PAGE_SIZE), TBOOT_TBSHARED_SIZE,
+               file->u.addr, file->size);
+        return false;
+    }
+
+    memset(file->u.base, 0, file->size);
+    _tboot_shared = (tboot_shared_t*)file->u.base;
+
+    /* TODO final mem map on 2nd shared page? */
+
+    /* TODO validate other locations */
+
+    return true;
 }
 
 static void efi_begin_launch(efi_xen_tboot_data_t *xtd)
@@ -349,6 +434,7 @@ static EFI_STATUS efi_load_configs(void)
     if (size > EFI_MAX_CONFIG_FILE) {
         status = EFI_INVALID_PARAMETER;
         printk("TBOOT config file too big - size: %d\n", size);
+        BS->FreePool((void*)addr);
         goto err;
     }
 
@@ -358,14 +444,18 @@ static EFI_STATUS efi_load_configs(void)
     cfg->u.base = tboot_config_file;
     cfg->size = size;
 
-    /* Parse original */
+    /* Make a copy of the parsed TBOOT config in .data */
+    memcpy(tboot_parsed_config_file, (void*)addr, size);
     cfg = efi_get_file(EFI_FILE_TBOOT_CONFIG_PARSED);
-    cfg->u.addr = addr;
+    cfg->u.base = tboot_parsed_config_file;
     cfg->size = size;
     efi_cfg_pre_parse(cfg);
+
+    BS->FreePool((void*)addr);
     BS->FreePool(file_path);
 
     /* Get file path for Xen image and config */
+    /* TODO use efi_cfg_copy_home_dir from plan-b */
     file_path = atow_alloc(efi_cfg_get_value(cfg, SECTION_TBOOT, ITEM_XENPATH));
     if (!file_path) {
         printk("Failed to allocate buffer for Xen config file\n");
@@ -389,6 +479,7 @@ static EFI_STATUS efi_load_configs(void)
     if (size > EFI_MAX_CONFIG_FILE) {
         status = EFI_INVALID_PARAMETER;
         printk("Xen config file too big - size: %d\n", size);
+        BS->FreePool((void*)addr);
         goto err;
     }
 
@@ -398,11 +489,14 @@ static EFI_STATUS efi_load_configs(void)
     cfg->u.base = xen_config_file;
     cfg->size = size;
 
-    /* Parse original */
+    /* Make a copy of the parsed Xen config in .data */
+    memcpy(xen_parsed_config_file, (void*)addr, size);
     cfg = efi_get_file(EFI_FILE_XEN_CONFIG_PARSED);
-    cfg->u.addr = addr;
+    cfg->u.base = xen_parsed_config_file;
     cfg->size = size;
     efi_cfg_pre_parse(cfg);
+
+    BS->FreePool((void*)addr);
     BS->FreePool(file_path);
 
     /* Locate and split off the kernel cmdline */
@@ -416,12 +510,7 @@ static EFI_STATUS efi_load_configs(void)
     return EFI_SUCCESS;
 
 err:
-    cfg = efi_get_file(EFI_FILE_XEN_CONFIG);
-    if (cfg->u.base)
-        BS->FreePages(cfg->u.addr, PFN_UP(cfg->size));
-    cfg = efi_get_file(EFI_FILE_TBOOT_CONFIG);
-    if (cfg->u.base)
-        BS->FreePages(cfg->u.addr, PFN_UP(cfg->size));
+    /* TODO the cleanup in plan-b is wrong here + missing BS->FreePool((void*)addr) in errors above */
     if (file_path)
         BS->FreePool(file_path);
 
