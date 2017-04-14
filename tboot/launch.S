@@ -53,6 +53,11 @@
 #define CS_SEL64               0x0008
 #define DS_SEL64               0x0010
 
+/* Interrupt table definitions */
+#define INT_VECTOR_COUNT       0x100
+#define INT_VECTOR_SIZE        0x20
+#define INT_ERROR_CODE_MASK    0x27d00 /* Bits of exceptions w/ error codes */
+
 /* errorcode for post-launch memory layout verfication failure */
 #define LAYOUT_ERR             0xc0008001
 
@@ -331,7 +336,7 @@ start64:
 	leaq	idt_table64(%rip), %rcx
 	movq	%rcx, -8(%rax)
 
-	leaq	int_handler(%rip), %rax
+	leaq	int_vectors(%rip), %rax
 	xorq	%rdx, %rdx
 1:
 	cmpw	$256, %dx
@@ -349,6 +354,7 @@ start64:
 2:
 	incw	%dx
 	addq	$16, %rcx
+	addq	$INT_VECTOR_SIZE, %rax
 	jmp	1b
 1:
 	lidt	idt_desc64(%rip)
@@ -386,9 +392,26 @@ ENTRY(bsp_stack_ref)
  * Interrupt handler
  */
 int_handler:
-	movq	(%rsp), %rcx
+	movq	(%rsp), %rcx  /* vector */
+	movq	8(%rsp), %rdx /* error code */
 	call	handle_exception
 	ud2
+
+int_vectors:
+	v = 0
+	.rept INT_VECTOR_COUNT
+	movq	$INT_ERROR_CODE_MASK, %rcx
+	shrq	$v, %rcx
+	andq	$1, %rcx # does this exception push an error code?
+	jnz	1f
+	pushq	$~0
+1:
+	pushq	$v
+	jmp	int_handler
+	v = v + 1
+	.fill int_vectors + INT_VECTOR_SIZE*v - ., 1, 0x90
+	.endr
+int_vectors_end:
 
 /* GDT */
 	.align 16
@@ -427,13 +450,13 @@ idt_desc64_end:
 	.align	16
 
 idt_table64:
-	.rept	256
-		.word	0x0000     /* Offset 15 - 0 */
-		.word	CS_SEL64   /* Segment selector */
-		.word	0x8e00     /* P, DPL=0, 64b, Interrupt (default) */
-		.word	0x0000     /* Offset 31 - 16 */
-		.long	0x00000000 /* Offset 63 - 32 */
-		.long	0x00000000 /* Reserved */
+	.rept	INT_VECTOR_COUNT
+	.word	0x0000     /* Offset 15 - 0 */
+	.word	CS_SEL64   /* Segment selector */
+	.word	0x8e00     /* P, DPL=0, 64b, Interrupt (default) */
+	.word	0x0000     /* Offset 31 - 16 */
+	.long	0x00000000 /* Offset 63 - 32 */
+	.long	0x00000000 /* Reserved */
 	.endr
 idt_table64_end:
 

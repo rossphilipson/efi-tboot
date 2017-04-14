@@ -476,10 +476,11 @@ void shutdown(void)
     /* TODO fill me in */
 }
 
-void handle_exception(uint64_t error_code)
+void handle_exception(uint64_t vector, uint64_t error_code)
 {
-    printk(TBOOT_INFO"Received exception: 0x%llx - shutting down...\n",
-           error_code);
+    printk(TBOOT_INFO"Received exception vector: %llx error code: %llx"
+           " - shutting down...\n",
+           vector, error_code);
 
     /* TODO for now, power cycle until the shutdown code is finished */
     outb(0xcf9, 0x0a);
