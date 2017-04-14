@@ -178,7 +178,7 @@ out:
 
 static void efi_begin_launch(efi_xen_tboot_data_t *xtd)
 {
-    g_post_ebs = true;
+    efi_set_postebs();
     begin_launch(xtd);
 }
 
@@ -432,7 +432,7 @@ static bool efi_setup_memory_blocks(void)
 {
     efi_file_t *rtmem = efi_get_file(EFI_FILE_RTMEM);
     efi_file_t *tbshared = efi_get_file(EFI_FILE_TBSHARED);
-    /* TODO comes later efi_memmap_t *memmap = efi_get_memmap();*/
+    efi_memmap_t *memmap = efi_get_memmap(true);
 
     if (sizeof(tboot_shared_t) > PAGE_SIZE) {
         printk("Shared TBOOT information greater than PAGE_SIZE! 0x%x\n",
@@ -443,8 +443,9 @@ static bool efi_setup_memory_blocks(void)
     tbshared->u.base = rtmem->u.base + TBOOT_PLEPT_SIZE + TBOOT_MLEPT_SIZE;
     tbshared->size = TBOOT_TBSHARED_SIZE;
 
-    /* TODO memmap->base = tbshared->u.base + PAGE_SIZE;
-    memmap->size = PAGE_SIZE;*/
+    /* This is where the final mem map will live */
+    memmap->base = tbshared->u.base + PAGE_SIZE;
+    memmap->size = PAGE_SIZE;
 
     return true;
 }

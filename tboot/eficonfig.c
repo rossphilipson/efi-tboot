@@ -45,18 +45,30 @@
 #include <printk.h>
 
 /* Memory based file storage */
-static efi_file_t efi_files[EFI_FILE_MAX];
+static efi_file_t __data efi_files[EFI_FILE_MAX];
+
+/* The EFI memory map returned by Xen */
+static efi_memmap_t __data *efi_memmap;
+
+/* The EFI memory map controlled by TBOOT */
+static efi_memmap_t __data *efi_memmap_final;
+
+/*
+ * TODO these should be reloaded post ML. NOTE a nuber of globals were
+ * moved to the .data section in plan-b. Since they have to be reloaded this
+ * should not be necessary.
+ */
 
 /* Root path to TBOOT image home */
-wchar_t tboot_dir[EFI_MAX_PATH];
+static wchar_t tboot_dir[EFI_MAX_PATH];
 
-const char *kernel_cmdline = "";
+static const char *kernel_cmdline = "";
 
 /* Is this pre or post EBS */
-bool g_post_ebs = false;
+static bool postebs = false;
 
 /* Xen post launch callback */
-uint64_t g_xen_post_launch_cb;
+static uint64_t xen_post_launch_cb;
 
 void efi_cfg_init(void)
 {
@@ -67,6 +79,23 @@ void efi_cfg_init(void)
 efi_file_t *efi_get_file(efi_file_select_t sel)
 {
     return &efi_files[sel];
+}
+
+efi_memmap_t *efi_get_memmap(bool final)
+{
+    if (final)
+        return efi_memmap_final;
+    return efi_memmap;
+}
+
+void efi_set_postebs(void)
+{
+    postebs = true;
+}
+
+bool efi_is_postebs(void)
+{
+    return postebs;
 }
 
 const wchar_t *efi_get_tboot_path(void)
@@ -190,6 +219,7 @@ bool efi_cfg_copy_tboot_path(const wchar_t *file_path)
 bool efi_store_xen_tboot_data(efi_xen_tboot_data_t *xtd)
 {
     efi_file_t *file;
+    efi_memmap_t *memmap = efi_get_memmap(false);
 
     /* sanity */
     if ( (xtd->kernel == NULL) || (xtd->kernel_size == 0) ||
@@ -204,12 +234,12 @@ bool efi_store_xen_tboot_data(efi_xen_tboot_data_t *xtd)
     file = efi_get_file(EFI_FILE_RAMDISK);
     file->u.base = xtd->ramdisk;
     file->size = xtd->ramdisk_size;
-    file = efi_get_file(EFI_FILE_MEMMAP);
-    file->u.base = xtd->memory_map;
-    file->size = xtd->memory_map_size;
-    file->other = xtd->memory_desc_size;
 
-    g_xen_post_launch_cb = xtd->post_launch_cb;
+    memmap->base = xtd->memory_map;
+    memmap->size = xtd->memory_map_size;
+    memmap->desc_size = xtd->memory_desc_size;
+
+    xen_post_launch_cb = xtd->post_launch_cb;
 
     return true;
 }

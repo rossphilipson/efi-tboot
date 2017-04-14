@@ -403,7 +403,9 @@ void post_launch(void)
 
     /* TODO call efi_scan_memory_map again after measured launch to rebuild map */
 
-    /* TODO hash Xen text section before transferring control back to it */
+    /* TODO pass Xen a new memory map after it has been reconciled w/ MDRs */
+
+    /* TODO hash Xen sections before transferring control back to it (use special pre-ML sections?) */
 }
 
 void s3_launch(void)

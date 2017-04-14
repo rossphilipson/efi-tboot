@@ -72,20 +72,21 @@ uint32_t g_min_ram = 0;
 /*
  * All we really care about are conventional RAM regions. This will include
  * coalesced RAM, EFI loader and boot services memory.
+ *
+ * TODO this needs some work regarding pre/post ML and final mem map
  */
 bool efi_scan_memory_map(void)
 {
     const EFI_MEMORY_DESCRIPTOR *desc;
-    efi_file_t *mmfile;
     const void *memory_map;
     uint64_t size, size_desc, length, type, last = MEM_NONE, i;
     mem_map_t *entry = g_ram_map - 1;
+    efi_memmap_t *memmap = efi_get_memmap(false);
 
     /* Note the other field holds the descriptor size for mem map file */
-    mmfile = efi_get_file(EFI_FILE_MEMMAP);
-    memory_map = mmfile->u.base;
-    size       = mmfile->size;
-    size_desc  = mmfile->other;
+    memory_map = memmap->base;
+    size       = memmap->size;
+    size_desc  = memmap->desc_size;
 
     if (!memory_map || size == 0 ||
          size_desc < sizeof(EFI_MEMORY_DESCRIPTOR)) {
