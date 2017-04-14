@@ -483,10 +483,15 @@ struct tpm_if {
     bool (*check)(void);
 };
 
-struct tpm_if tpm_12_if;
-struct tpm_if tpm_20_if;
 struct tpm_if *g_tpm;
 uint8_t g_tpm_family;
+
+void tpm_reloc_init(void);
+void tpm12_reloc_init(void);
+void tpm20_reloc_init(void);
+
+struct tpm_if *tpm12_get_if(void);
+struct tpm_if *tpm20_get_if(void);
 
 bool tpm_validate_locality(uint32_t locality);
 bool tpm_validate_locality_crb(uint32_t locality);

@@ -46,19 +46,15 @@
 #include <tpm.h>
 #include <sha1.h>
 
-__data struct tpm_if *g_tpm = NULL;
-u16 tboot_alg_list[2] = {TB_HALG_SHA1, TB_HALG_SHA256};
-
-
-
-
-
+struct tpm_if __data *g_tpm = NULL;
+u16 __data tboot_alg_list[2] = {TB_HALG_SHA1, TB_HALG_SHA256};
 
 /* Global variables for TPM status register */
-static tpm20_reg_sts_t       g_reg_sts, *g_reg_sts_20 = &g_reg_sts;
-static tpm12_reg_sts_t       *g_reg_sts_12 = (tpm12_reg_sts_t *)&g_reg_sts;
+static tpm20_reg_sts_t __data g_reg_sts;
+static tpm20_reg_sts_t __data *g_reg_sts_20;
+static tpm12_reg_sts_t __data *g_reg_sts_12;
 
-uint8_t g_tpm_family = 0;
+uint8_t __data g_tpm_family = 0;
 
 /* TPM_DATA_FIFO_x */
 #define TPM_REG_DATA_FIFO        0x24
@@ -827,6 +823,14 @@ bool tpm_workaround_crb(void)
     return true;
 }
 
+void tpm_reloc_init(void)
+{
+    g_reg_sts_20 = &g_reg_sts;
+    g_reg_sts_12 = (tpm12_reg_sts_t *)&g_reg_sts;
+    tpm12_reloc_init();
+    tpm20_reloc_init();
+}
+
 bool tpm_detect(void)
 {
     if (is_tpm_crb()) {
@@ -855,7 +859,7 @@ bool tpm_detect(void)
     	  }
     }
     else {
-		g_tpm = &tpm_12_if; /* Don't leave g_tpm as NULL*/
+		g_tpm = tpm12_get_if(); /* Don't leave g_tpm as NULL*/
 		if ( tpm_validate_locality(0) )  printk(TBOOT_INFO"TPM: FIFO_INF Locality 0 is open\n");
 		else {	
 			printk(TBOOT_ERR"TPM: FIFO_INF Locality 0 is not open\n");
@@ -872,9 +876,9 @@ bool tpm_detect(void)
 			}
 	}
    
-    if (g_tpm_family == TPM_IF_12)  g_tpm = &tpm_12_if;
-    if (g_tpm_family == TPM_IF_20_FIFO)  g_tpm = &tpm_20_if;
-    if (g_tpm_family == TPM_IF_20_CRB)  g_tpm = &tpm_20_if;
+	if (g_tpm_family == TPM_IF_12)  g_tpm = tpm12_get_if();
+	if (g_tpm_family == TPM_IF_20_FIFO)  g_tpm = tpm20_get_if();
+	if (g_tpm_family == TPM_IF_20_CRB)  g_tpm = tpm20_get_if();
 
    /*  if (!txt_is_launched()) 
 	   g_tpm->cur_loc = 0;
@@ -886,7 +890,7 @@ bool tpm_detect(void)
     g_tpm->timeout.timeout_c = TIMEOUT_C;
     g_tpm->timeout.timeout_d = TIMEOUT_D;
 */
-    return g_tpm->init(g_tpm);
+	return g_tpm->init(g_tpm);
 }
 
 void tpm_print(struct tpm_if *ti)
