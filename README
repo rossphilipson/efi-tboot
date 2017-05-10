@@ -10,6 +10,16 @@
 
                           --- EFI TBOOT ---
 
+The main approach as represented by the code in the master branch launches Xen
+are an EFI bootloader using boot services. It uses a callback from Xen to TBOOT
+to return control to TBOOT to do the measured launch. A callback from TBOOT to
+Xen is used to return control to Xen which does EBS.
+
+The plan-b approach as represented by the code in the plan-b branch doess all
+the setup work itself (loading moudles, getting graphics information, loading
+configs) that Xen would normally do. TBOOT then does the measured launch, does
+EBS and then transfers control to Xen via a special exported entry point.
+
        /!\ The EFI TBOOT project is currently under development /!\
 
 EFI TBOOT is mostly a proof of concept at this point. It is not currently
@@ -17,7 +27,7 @@ functional. It can be built and installed as an EFI boot loader. It only works
 in conjunction with Xen at the moment. The current development work is being
 done on Fedora 25 x64.
 
-The status as of March 14, 2017 is:
+The status as of May 10, 2017 is:
  - EFI TBOOT will boot, but it needs a few key strokes to get going (this is
    for debugging purposes).
  - EFI TBOOT will relocate itself to EFI runtime memory and setup a shared
@@ -26,8 +36,12 @@ The status as of March 14, 2017 is:
    launch configuration.
  - Xen is launched and has code to call EFI TBOOT back after EBS.
  - EFI TBOOT then does the SENTER successfully in the callback.
- - The post launch entry point is reached but the switch back to long mode
-   is not working.
+ - The post launch entry point is reached, switch back to long mode, layout
+   verification, then return to the post launch C code in tboot.c
+ - The post launch code and return to Xen are mostly unimplemented at this
+   point.
+ - The plan-b code gets through measured launch also but a number of bits are
+   missing and the entry point code in Xen is unimplemented.
 
                          --- Get EFI TBOOT ---
 
