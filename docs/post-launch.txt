@@ -1,0 +1,145 @@
+TXT/TBOOT Specific:
+---------------------------------------------------------------------
+
+boot.S:
+--------------------
+  Taken care of in the asm code.
+
+begin_launch():
+--------------------
+
+tboot_parse_cmdline():
+  What to do with the command lines from GRUB. The TBOOT one gets put in the MLE
+    and measured by TXT.
+
+get_tboot_call_racm_check():
+  No RACMs exist. Put a TODO to add future support if neeed.
+
+if ( !(rdmsr(MSR_APICBASE) & APICBASE_BSP) )
+  Taken care of.
+
+copy_e820_map():
+  To use and adjust. We will handle this differently.
+
+tpm_detect():
+  Already been done pre-launch
+
+verify_IA32_se_svn_status():
+  TXT only. Not sure where it should happen?
+  It seems it is really a prelaunch check and we don't really care.
+
+set_policy():
+apply_policy(err):
+  TXT only. 
+
+launch_racm():
+  No RACMs exist. Put a TODO to add future support if neeed.
+
+supports_txt():
+  The pre-launch bits have done that.
+
+txt_display_errors():
+  Once logging is operational.
+
+verify_platform():
+  The pre-launch bits have done that.
+
+verify_loader_context():
+  Plan to get module info etc.
+
+post_launch():
+--------------------
+
+txt_post_launch():
+  txt_post_launch_verify_platform():
+    Verify heap seems like something we can do later
+    Verify MTRRs. What to do about passig MTRRs? See below...
+    Verify PMRs seems like something we can do later
+      Leave these as a TODO for now.
+
+  Clear error regs
+    Do this early on.
+
+  txt_wakeup_cpus():
+    I believe we will do this very differently in the SMP bringup code
+      without putting APs in mini guests.
+
+  Restore MSR_IA32_MISC_ENABLE
+  restore_mtrrs():
+    The kernel should set this stuff up correctly. Plan to do nothing around this.
+
+  apply_policy():
+    See above note on policy.
+
+  TXTCR_CMD_SECRETS
+    Do this early.
+
+  TXTCR_CMD_OPEN_LOCALITY1
+    Do this early on.
+
+save_vtd_dmar_table():
+  Not sure why this is done along with restore_vtd_dmar_table()
+
+remove_txt_modules():
+  My guess is that the pre-launch bits will figure out what ACM to use
+    and this routine is meamingless because it is about the MBI
+
+txt_protect_mem_regions():
+  Involves updating e820. Needs consideration.
+  May have to do this very early before kernel gets at the e820
+  Presumably the bootparams can be munged in place.
+
+verify_modules():
+  This will happen when we measure the other modules.
+
+/* verify that tboot is in valid RAM (i.e. E820_RAM) */
+  Do this early - see txt_protect_mem_regions
+
+/* protect ourselves, MLE page table, and MLE/kernel shared page */
+  Do this early - see txt_protect_mem_regions
+
+TBOOT_LOG_TARGET_MEMORY
+  Need to figure out logging
+
+replace_e820_map()
+  Does not make sense for us
+
+print_e820_map()
+  Need to figure out logging
+
+verify_all_modules()
+  Modules and policy handled. 
+
+verify_all_nvindices()
+  Seems this could be deferred to later.
+
+seal_pre_k_state()
+  Policy handled differently.
+
+_tboot_shared
+  This will look very different to us
+
+TBOOT PMR Usage
+---------------------------------------------------------------------
+
+TBOOT determines what memory it will try to cover with the PMRs. The
+information is passed to the ACM through the TXT heap. The ACM does the
+actual PMR configuring.
+
+TBOOT tries to cover as much physical RAM as possible. The high PMR covers
+all memory over 4Gb. The low PMR has some special logic to figure out how
+much memory under 4Gb it can cover.
+
+The routine get_ram_ranges() contains that logic. It starts by assuming it
+can cover all memory under 4Gb. It then looks for the first reserved memory
+area it encounters that is > g_min_ram. When that location is found it stops
+looking and that is the extent of what the low PMR maps. This is done because
+in some firmwares, covering certain reserved areas can cause hangs purportedly
+due to some USB controllers/devices.
+
+This is an example of what TBOOT might end up covering:
+
+TBOOT: highest min_ram (0x2000000) region found: base=0x100000, size=0x9cb3f000
+TBOOT: min_lo_ram: 0x0, max_lo_ram: 0x9cc3f000
+TBOOT: min_hi_ram: 0x100000000, max_hi_ram: 0x44e000000
+
