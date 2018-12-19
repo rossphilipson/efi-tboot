@@ -1,0 +1,104 @@
+TXT/TBOOT Specific:
+---------------------------------------------------------------------
+
+begin_launch():
+--------------------
+
+tboot_parse_cmdline():
+  What to do with the command lines from GRUB. The TBOOT one gets put in the MLE
+    and measured by TXT.
+
+get_tboot_call_racm_check():
+  No RACMs exist. Put a TODO to add future support if neeed.
+
+set_s3_resume_vector()
+  Punt on S3 for now.
+
+if ( !(rdmsr(MSR_APICBASE) & APICBASE_BSP) )
+  Taken care of.
+
+copy_e820_map():
+  To use and adjust. We will handle this differently.
+
+find_platform_sinit_module():
+  Need to do this.
+
+tpm_detect():
+  Already been done pre-launch
+
+verify_IA32_se_svn_status():
+  TXT only. Not sure where it should happen?
+  It seems it is really a prelaunch check and we don't really care.
+
+set_policy():
+apply_policy(err):
+  TXT only. No VLP for us.
+
+launch_racm():
+  No RACMs exist. Put a TODO to add future support if neeed.
+
+supports_txt():
+  The pre-launch bits have to do this.
+
+txt_display_errors():
+  Once logging is operational.
+
+verify_platform():
+  The pre-launch bits have do this.
+
+verify_loader_context():
+  Plan to get module info etc.
+
+prepare_cpu():
+  The pre-launch bits have do this.
+
+was_last_boot_error():
+  Should do.
+
+prepare_tpm():
+  Should do.
+
+txt_launch_environment():
+  And onward...
+
+verify_platform():
+--------------------
+
+supports_txt():
+  Already did it once.
+
+vtd_bios_enabled():
+  Need to do.
+
+txt_ests_t ests = (txt_ests_t)read_pub_config_reg(TXTCR_ESTS);
+  Need to do.
+
+txt_heap = get_txt_heap();
+    if ( !verify_bios_data(txt_heap) )
+  Need to do.
+
+txt_launch_environment():
+--------------------
+
+build_mle_pagetable():
+  Need to do.
+
+init_txt_heap():
+  Need to do. Bunch of work in here. set_vtd_pmrs in here and min ram calcs.
+
+save_mtrrs():
+  Don't really care.
+
+set_mtrrs_for_acmod():
+  Need to do.
+
+tpm_relinquish_locality_crb():
+  Need to do though not sure what it does.
+
+__getsec_senter((uint32_t)g_sinit, (g_sinit->size)*4);
+  End of the line.
+
+
+
+
+
