@@ -601,7 +601,7 @@ void apply_policy(tb_error_t error)
     }
 
     _tboot_shared.shutdown_type = TB_SHUTDOWN_HALT;
-    shutdown();
+    /*shutdown();*/
 }
 
 #define VL_ENTRIES(i)    g_pre_k_s3_state.vl_entries[i]

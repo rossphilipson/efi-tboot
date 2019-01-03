@@ -141,23 +141,6 @@ ENTRY(__start)
         ud2
 
 /*
- * vmexit handler
- */
-ENTRY(vmx_asm_vmexit_handler)
-        call vmx_vmexit_handler
-	/* fall through to loop if callee returns (shouldn't happen) */
-
-ENTRY(_mini_guest)
-1:	pause
-	cmp $0, (aps_exit_guest)
-	je 1b
-	/* VMCALL out of guest */
-	.byte 0x0f,0x01,0xc1
-	jmp 1b
-
-#include "shutdown.S"
-
-/*
  * entry point for switch to real mode and jump
  * entry point in %ebx
  */

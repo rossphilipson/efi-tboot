@@ -58,7 +58,6 @@
 #include <tpm.h>
 #include <tb_error.h>
 #include <txt/txt.h>
-#include <txt/vmcs.h>
 #include <txt/smx.h>
 #include <txt/mtrrs.h>
 #include <txt/config_regs.h>
@@ -86,10 +85,6 @@ extern long s3_flag;
 
 extern char s3_wakeup_16[];
 extern char s3_wakeup_end[];
-
-extern atomic_t ap_wfs_count;
-
-extern struct mutex ap_lock;
 
 /* loader context struct saved so that post_launch() can use it */
 __data loader_ctx g_loader_ctx = { NULL, 0 };
@@ -395,127 +390,11 @@ static void shutdown_system(uint32_t shutdown_type)
     }
 }
 
-void shutdown(void)
-{
-    struct tpm_if *tpm = get_tpm();
-    const struct tpm_if_fp *tpm_fp = get_tpm_fp();
-   
-    /* wait-for-sipi only invoked for APs, so skip all BSP shutdown code */
-    if ( _tboot_shared.shutdown_type == TB_SHUTDOWN_WFS ) {
-        atomic_inc(&ap_wfs_count);
-        _tboot_shared.ap_wake_trigger = 0;
-        mtx_enter(&ap_lock);
-        printk(TBOOT_INFO"shutdown(): TB_SHUTDOWN_WFS\n");
-        if ( use_mwait() )
-            ap_wait(get_apicid());
-        else
-            handle_init_sipi_sipi(get_apicid());
-        apply_policy(TB_ERR_FATAL);
-    }
-
-    printk(TBOOT_INFO"wait until all APs ready for txt shutdown\n");
-    while( atomic_read(&_tboot_shared.num_in_wfs)
-           < atomic_read(&ap_wfs_count) )
-        cpu_relax();
-
-    /* ensure localities 0, 1 are inactive (in case kernel used them) */
-    /* request TPM current locality to be active */
-    if (g_tpm_family != TPM_IF_20_CRB ) {
-        if (!release_locality(0))
-            printk(TBOOT_ERR"Release TPM FIFO locality 0 failed \n");
-        if (!release_locality(1))
-            printk(TBOOT_ERR"Release TPM FIFO locality 1 failed \n");
-        if (!tpm_wait_cmd_ready(tpm->cur_loc))
-            printk(TBOOT_ERR"Request TPM FIFO locality %d failed \n", tpm->cur_loc);
-    }
-    else {
-        if (!tpm_relinquish_locality_crb(0))
-            printk(TBOOT_ERR"Release TPM CRB locality 0 failed \n");
-        if (!tpm_relinquish_locality_crb(1))			 
-            printk(TBOOT_ERR"Release TPM CRB locality 1 failed \n");
-        if (!tpm_request_locality_crb(tpm->cur_loc))
-            printk(TBOOT_ERR"Request TPM CRB locality %d failed \n", tpm->cur_loc);
-    }
-
-    if ( _tboot_shared.shutdown_type == TB_SHUTDOWN_S3 ) {
-        /* restore DMAR table if needed */
-        if ( get_tboot_save_vtd() )
-            restore_vtd_dmar_table();
-	if ( tpm->major == TPM20_VER_MAJOR ) {
-	    tpm_fp->context_flush(tpm, tpm->cur_loc, handle2048);
-	    tpm_fp->context_load(tpm, tpm->cur_loc, &tpm2_context_saved, &handle2048);
- 	}
-
-		
-	/* save kernel/VMM resume vector for sealing */
-        g_post_k_s3_state.kernel_s3_resume_vector =  _tboot_shared.acpi_sinfo.kernel_s3_resume_vector;
-        
-        /* create and seal memory integrity measurement */
-        if ( !seal_post_k_state() )   
-	    apply_policy(TB_ERR_S3_INTEGRITY);
-            /* OK to leave key in memory on failure since if user cared they
-               would have policy that doesn't continue for TB_ERR_S3_INTEGRITY
-               error */
-        else
-            /* wipe S3 key from memory now that it is sealed */
-            tb_memset(_tboot_shared.s3_key, 0, sizeof(_tboot_shared.s3_key));
-    }
-
-    /* cap dynamic PCRs extended as part of launch (17, 18, ...) */
-    if ( is_launched() ) {
-
-        /* cap PCRs to ensure no follow-on code can access sealed data */
-        tpm_fp->cap_pcrs(tpm, tpm->cur_loc, -1);
-
-        /* have TPM save static PCRs (in case VMM/kernel didn't) */
-        /* per TCG spec, TPM can invalidate saved state if any other TPM
-           operation is performed afterwards--so do this last */
-        if ( _tboot_shared.shutdown_type == TB_SHUTDOWN_S3 )
-            tpm_fp->save_state(tpm, tpm->cur_loc);
-
-        /* scrub any secrets by clearing their memory, then flush cache */
-        /* we don't have any secrets to scrub, however */
-        ;
-
-        /* in mwait "mode", APs will be in MONITOR/MWAIT and can be left there */
-        if ( !use_mwait() ) {
-            /* force APs to exit mini-guests if any are in and wait until */
-            /* all are out before shutting down TXT */
-            printk(TBOOT_INFO"waiting for APs (%u) to exit guests...\n", atomic_read(&ap_wfs_count));
-            force_aps_exit();
-            uint32_t timeout = AP_GUEST_EXIT_TIMEOUT;
-            do {
-                if ( timeout % 0x8000 == 0 )
-                    printk(TBOOT_INFO".");
-                else
-                    cpu_relax();
-                if ( timeout % 0x200000 == 0 )
-                    printk(TBOOT_INFO"\n");
-                timeout--;
-            } while ( ( atomic_read(&ap_wfs_count) > 0 ) && timeout > 0 );
-            printk(TBOOT_INFO"\n");
-            if ( timeout == 0 )
-                printk(TBOOT_INFO"AP guest exit loop timed-out\n");
-            else
-                printk(TBOOT_INFO"all APs exited guests\n");
-        } else {
-            /* reset ap_wfs_count to avoid tboot hash changing in S3 case */
-            atomic_set(&ap_wfs_count, 0);
-        }
-
-        /* turn off TXT (GETSEC[SEXIT]) */
-        txt_shutdown();
-    }
-
-    /* machine shutdown */
-    shutdown_system(_tboot_shared.shutdown_type);
-}
-
 void handle_exception(void)
 {
     printk(TBOOT_INFO"received exception; shutting down...\n");
     _tboot_shared.shutdown_type = TB_SHUTDOWN_REBOOT;
-    shutdown();
+    shutdown_system(_tboot_shared.shutdown_type);
 }
 
 /*

@@ -58,7 +58,6 @@ extern tb_error_t txt_post_launch_verify_platform(void);
 extern bool txt_s3_launch_environment(void);
 extern void txt_shutdown(void);
 extern bool txt_is_powercycle_required(void);
-extern void ap_wait(unsigned int cpuid);
 extern int get_evtlog_type(void);
 
 extern uint32_t g_using_da;
