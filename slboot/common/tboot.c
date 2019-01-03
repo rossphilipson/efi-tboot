@@ -69,20 +69,18 @@
 #include <cmdline.h>
 #include <tpm_20.h>
 
-extern void verify_all_modules(loader_ctx *lctx);
 extern void apply_policy(tb_error_t error);
 extern void verify_IA32_se_svn_status(const acm_hdr_t *acm_hdr);
-extern __data u32 handle2048;
 extern __data tpm_contextsave_out tpm2_context_saved;
 /* counter timeout for waiting for all APs to exit guests */
 #define AP_GUEST_EXIT_TIMEOUT     0x01000000
-
-extern long s3_flag;
 
 /* loader context struct saved so that post_launch() can use it */
 __data loader_ctx g_loader_ctx = { NULL, 0 };
 __data loader_ctx *g_ldr_ctx = &g_loader_ctx;
 __data uint32_t g_mb_orig_size = 0;
+
+static void shutdown_system(uint32_t);
 
 
 unsigned long get_tboot_mem_end(void)
@@ -93,13 +91,6 @@ unsigned long get_tboot_mem_end(void)
 static tb_error_t verify_platform(void)
 {
     return txt_verify_platform();
-}
-
-static bool is_launched(void)
-{
-    if ( supports_txt() == TB_ERR_NONE )
-        return txt_is_launched();
-    else return false;
 }
 
 static bool prepare_cpu(void)
@@ -153,7 +144,6 @@ static void launch_racm(void)
     apply_policy(err);
 }
 
-static void shutdown_system(uint32_t);
 void check_racm_result(void)
 {
     txt_get_racm_error();
@@ -169,7 +159,7 @@ void begin_launch(void *addr, uint32_t magic)
 
     /* on pre-SENTER boot, copy command line to buffer in tboot image
        (so that it will be measured); buffer must be 0 -filled */
-    if ( !is_launched() && !s3_flag ) {
+    {
 
         const char *cmdline_orig = get_cmdline(g_ldr_ctx);
         const char *cmdline = NULL;
@@ -197,9 +187,6 @@ void begin_launch(void *addr, uint32_t magic)
     if ( get_tboot_call_racm_check() )
         check_racm_result(); /* never return */
 
-    if (is_launched()) printk(TBOOT_INFO"SINIT ACM successfully returned...\n");
-    if ( s3_flag ) printk(TBOOT_INFO"Resume from S3...\n");
-
     /* RLM scaffolding
        if (g_ldr_ctx->type == 2)
        print_loader_ctx(g_ldr_ctx);
@@ -213,9 +200,7 @@ void begin_launch(void *addr, uint32_t magic)
     printk(TBOOT_INFO"BSP is cpu %u\n", get_apicid());
 
     /* make copy of e820 map that we will use and adjust */
-    if ( !s3_flag ) {
-        if ( !copy_e820_map(g_ldr_ctx) )  apply_policy(TB_ERR_FATAL);
-    }
+    if ( !copy_e820_map(g_ldr_ctx) )  apply_policy(TB_ERR_FATAL);
 
     /* we need to make sure this is a (TXT-) capable platform before using */
     /* any of the features, incl. those required to check if the environment */
@@ -258,21 +243,12 @@ void begin_launch(void *addr, uint32_t magic)
     apply_policy(err);
 
     /* ensure there are modules */
-    if ( !s3_flag && !verify_loader_context(g_ldr_ctx) )
+    if ( !verify_loader_context(g_ldr_ctx) )
         apply_policy(TB_ERR_FATAL);
 
     /* make the CPU ready for measured launch */
     if ( !prepare_cpu() )
         apply_policy(TB_ERR_FATAL);
-
-    /* do s3 launch directly, if is a s3 resume */
-    if ( s3_flag ) {
-        if ( !prepare_tpm() )
-            apply_policy(TB_ERR_TPM_NOT_READY);
-        txt_s3_launch_environment();
-        printk(TBOOT_ERR"we should never get here\n");
-        apply_policy(TB_ERR_FATAL);
-    }
 
     /* check for error from previous boot */
     printk(TBOOT_INFO"checking previous errors on the last boot.\n\t");

@@ -55,7 +55,6 @@ extern tb_error_t txt_launch_environment(loader_ctx *lctx);
 extern tb_error_t txt_launch_racm(loader_ctx *lctx);
 extern void txt_post_launch(void);
 extern tb_error_t txt_post_launch_verify_platform(void);
-extern bool txt_s3_launch_environment(void);
 extern void txt_shutdown(void);
 extern bool txt_is_powercycle_required(void);
 extern int get_evtlog_type(void);

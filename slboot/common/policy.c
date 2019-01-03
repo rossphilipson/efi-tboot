@@ -61,8 +61,6 @@
 
 extern void shutdown(void);
 
-extern long s3_flag;
-
 /*
  * policy actions
  */

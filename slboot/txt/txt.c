@@ -753,39 +753,6 @@ tb_error_t txt_launch_environment(loader_ctx *lctx)
     return TB_ERR_FATAL;
 }
 
-bool txt_s3_launch_environment(void)
-{
-    /* initial launch's TXT heap data is still in place and assumed valid */
-    /* so don't re-create; this is OK because it was untrusted initially */
-    /* and would be untrusted now */
-    int log_type = get_evtlog_type();
-    /* get sinit binary loaded */
-    g_sinit = (acm_hdr_t *)(uint32_t)read_pub_config_reg(TXTCR_SINIT_BASE);
-    if ( g_sinit == NULL ){
-        return false;
-    }
-	/* initialize event log in os_sinit_data, so that events will not */
-	/* repeat when s3 */
-	if ( log_type == EVTLOG_TPM12 && g_elog ) {
-		g_elog = (event_log_container_t *)init_event_log();
-    } else if ( log_type == EVTLOG_TPM2_TCG && g_elog_2_1)  {
-        init_evtlog_desc_1(g_elog_2_1);
-    } else if ( log_type == EVTLOG_TPM2_LEGACY && g_elog_2)  {
-        init_evtlog_desc(g_elog_2);
-    }
-
-    /* set MTRRs properly for AC module (SINIT) */
-    set_mtrrs_for_acmod(g_sinit);
-
-    printk(TBOOT_INFO"executing GETSEC[SENTER]...\n");
-    /* (optionally) pause before executing GETSEC[SENTER] */
-    if ( g_vga_delay > 0 )
-        delay(g_vga_delay * 1000);
-    __getsec_senter((uint32_t)g_sinit, (g_sinit->size)*4);
-    printk(TBOOT_ERR"ERROR--we should not get here!\n");
-    return false;
-}
-
 tb_error_t txt_launch_racm(loader_ctx *lctx)
 {
     acm_hdr_t *racm = NULL;

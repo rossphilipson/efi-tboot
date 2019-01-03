@@ -237,7 +237,4 @@ bsp_stack:
 
 .section ".data"
 
-ENTRY(s3_flag)
-	.long 0
-
 ENTRY(_end)
