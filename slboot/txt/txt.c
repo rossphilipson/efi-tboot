@@ -582,21 +582,7 @@ static txt_heap_t *init_txt_heap(void *ptab_base, acm_hdr_t *sinit, loader_ctx *
 
     set_vtd_pmrs(os_sinit_data, min_lo_ram, max_lo_ram, min_hi_ram,
                  max_hi_ram);
-    /* LCP owner policy data */
-    void *lcp_base = NULL;
-    uint32_t lcp_size = 0;
 
-    if ( find_lcp_module(lctx, &lcp_base, &lcp_size) && lcp_size > 0 ) {
-        /* copy to heap */
-        if ( lcp_size > sizeof(os_mle_data->lcp_po_data) ) {
-            printk(TBOOT_ERR"LCP owner policy data file is too large (%u)\n",
-                   lcp_size);
-            return NULL;
-        }
-        tb_memcpy(os_mle_data->lcp_po_data, lcp_base, lcp_size);
-        os_sinit_data->lcp_po_base = (unsigned long)&os_mle_data->lcp_po_data;
-        os_sinit_data->lcp_po_size = lcp_size;
-    }
     /* capabilities : choose monitor wake mechanism first */
     txt_caps_t sinit_caps = get_sinit_capabilities(sinit);
     txt_caps_t caps_mask = { 0 };

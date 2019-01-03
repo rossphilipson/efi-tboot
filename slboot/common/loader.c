@@ -48,7 +48,6 @@
 #include <loader.h>
 #include <e820.h>
 #include <tboot.h>
-#include <lcp3.h>
 #include <elf_defns.h>
 #include <linux_defns.h>
 #include <tb_error.h>
@@ -574,50 +573,12 @@ find_module(loader_ctx *lctx, void **base, size_t *size,
     return false;
 }
 
-bool 
-find_lcp_module(loader_ctx *lctx, void **base, uint32_t *size)
-{
-    size_t size2 = 0;
-    void *base2 = NULL;
-
-    if ( base != NULL )
-        *base = NULL;
-    if ( size != NULL )
-        *size = 0;
-
-    /* try policy data file for old version (0x00 or 0x01) */
-    find_module_by_uuid(lctx, &base2, &size2, &((uuid_t)LCP_POLICY_DATA_UUID));
-
-    /* not found */
-    if ( base2 == NULL ) {
-        /* try policy data file for new version (0x0202) */
-        find_module_by_file_signature(lctx, &base2, &size2,
-                                      LCP_POLICY_DATA_FILE_SIGNATURE);
-
-        if ( base2 == NULL ) {
-            printk(TBOOT_WARN"no LCP module found\n");
-            return false;
-        }
-        else
-            printk(TBOOT_INFO"v2 LCP policy data found\n");
-    }
-    else
-        printk(TBOOT_INFO"v1 LCP policy data found\n");
-
-
-    if ( base != NULL )
-        *base = base2;
-    if ( size != NULL )
-        *size = size2;
-    return true;
-}
-
 /*
  * remove (all) SINIT and LCP policy data modules (if present)
  *
  * TODO do this in slboot before launch?
  */
-bool 
+bool
 remove_txt_modules(loader_ctx *lctx)
 {
     if ( 0 == get_module_count(lctx)) {
@@ -640,14 +601,6 @@ remove_txt_modules(loader_ctx *lctx)
         }
     }
 
-    void *base = NULL;
-    if ( find_lcp_module(lctx, &base, NULL) ) {
-        if ( remove_module(lctx, base) == NULL ) {
-            printk(TBOOT_ERR"failed to remove LCP module from module list\n");
-            return false;
-        }
-    }
-
     return true;
 }
 
@@ -663,7 +616,7 @@ static unsigned long max(unsigned long a, unsigned long b)
     return (a > b) ? a : b;
 }
 
-static 
+static
 unsigned long get_mbi_mem_end_mb1(const multiboot_info_t *mbi)
 {
     unsigned long end = (unsigned long)(mbi + 1);

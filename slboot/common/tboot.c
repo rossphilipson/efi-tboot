@@ -69,7 +69,6 @@
 #include <cmdline.h>
 #include <tpm_20.h>
 
-extern bool set_policy(void);
 extern void verify_all_modules(loader_ctx *lctx);
 extern void apply_policy(tb_error_t error);
 extern void verify_IA32_se_svn_status(const acm_hdr_t *acm_hdr);
@@ -238,10 +237,6 @@ void begin_launch(void *addr, uint32_t magic)
 
     /* verify SE enablement status */
     verify_IA32_se_svn_status(g_sinit);
-
-    /* read tboot verified launch control policy from TPM-NV (will use default if none in TPM-NV) */
-    err = set_policy();
-    apply_policy(err);
 
     /* if telled to call revocation acm, go with simplified path */
     if ( get_tboot_call_racm() )
