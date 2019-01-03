@@ -133,7 +133,6 @@ extern void save_mtrrs(mtrr_state_t *saved_state);
 extern void set_all_mtrrs(bool enable);
 extern bool set_mem_type(const void *base, uint32_t size, uint32_t mem_type);
 extern void restore_mtrrs(const mtrr_state_t *saved_state);
-extern bool validate_mtrrs(const mtrr_state_t *saved_state);
 
 #endif /*__TXT_MTRRS_H__ */
 

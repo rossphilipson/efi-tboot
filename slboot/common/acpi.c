@@ -56,26 +56,6 @@ static struct acpi_rsdp *rsdp;
 static struct acpi_table_header *g_dmar_table;
 static __data bool g_hide_dmar;
 
-static void dump_gas(const char *reg_name,
-                     const tboot_acpi_generic_address_t *reg)
-{
-    const char *space_id[] = { "memory", "I/O", "PCI config space", "EC",
-                               "SMBus" };
-
-    printk(TBOOT_DETA"%s GAS @ %p:\n", reg_name, reg);
-    if ( reg == NULL )
-        return;
-
-    if ( reg->space_id >= ARRAY_SIZE(space_id) )
-        printk(TBOOT_DETA"\t space_id: unsupported (%u)\n", reg->space_id);
-    else
-        printk(TBOOT_DETA"\t space_id: %s\n", space_id[reg->space_id]);
-    printk(TBOOT_DETA"\t bit_width: %u\n", reg->bit_width);
-    printk(TBOOT_DETA"\t bit_offset: %u\n", reg->bit_offset);
-    printk(TBOOT_DETA"\t access_width: %u\n", reg->access_width);
-    printk(TBOOT_DETA"\t address: %Lx\n", reg->address);
-}
-
 static inline struct acpi_rsdt *get_rsdt(void)
 {
     return (struct acpi_rsdt *)rsdp->rsdp1.rsdt;
@@ -291,16 +271,6 @@ static struct acpi_madt *get_apic_table(void)
     return (struct acpi_madt *)find_table(MADT_SIG);
 }
 
-uint32_t get_madt_apic_base(void)
-{
-    struct acpi_madt *madt = get_apic_table();
-    if ( madt == NULL ) {
-        printk(TBOOT_ERR"no MADT table found\n");
-        return 0;
-    }
-    return (uint32_t)madt->local_apic_address;
-}
-
 struct acpi_table_ioapic *get_acpi_ioapic_table(void)
 {
     struct acpi_madt *madt = get_apic_table();
@@ -326,122 +296,6 @@ struct acpi_table_ioapic *get_acpi_ioapic_table(void)
 	}
     printk(TBOOT_ERR"no IOAPIC type.\n");
     return NULL;
-}
-
-struct acpi_mcfg *get_acpi_mcfg_table(void)
-{
-    return (struct acpi_mcfg *)find_table(MCFG_SIG);
-}
-
-static bool write_to_reg(const tboot_acpi_generic_address_t *reg,
-                         uint32_t val)
-{
-    if ( reg->address >= 100000000ULL ) {
-        printk(TBOOT_ERR"GAS address >4GB (0x%Lx)\n", reg->address);
-        return false;
-    }
-    uint32_t address = (uint32_t)reg->address;
-
-    if ( reg->space_id == GAS_SYSTEM_IOSPACE ) {
-        switch ( reg->bit_width ) {
-            case 8:
-                outb(address, (uint8_t)val);
-                return true;
-            case 16:
-                outw(address, (uint16_t)val);
-                return true;
-            case 32:
-                outl(address, val);
-                return true;
-            default:
-                printk(TBOOT_ERR"unsupported GAS bit width: %u\n", reg->bit_width);
-                return false;
-        }
-    }
-    else if ( reg->space_id == GAS_SYSTEM_MEMORY ) {
-        switch ( reg->bit_width ) {
-            case 8:
-                writeb(address, (uint8_t)val);
-                return true;
-            case 16:
-                writew(address, (uint16_t)val);
-                return true;
-            case 32:
-                writel(address, val);
-                return true;
-            default:
-                printk(TBOOT_ERR"unsupported GAS bit width: %u\n", reg->bit_width);
-                return false;
-        }
-    }
-
-    printk(TBOOT_ERR"unsupported GAS addr space ID: %u\n", reg->space_id);
-    return false;
-}
-
-static bool read_from_reg(const tboot_acpi_generic_address_t *reg,
-                          uint32_t *val)
-{
-    if ( reg->address >= 100000000ULL ) {
-        printk(TBOOT_ERR"GAS address >4GB (0x%Lx)\n", reg->address);
-        return false;
-    }
-    uint32_t address = (uint32_t)reg->address;
-
-    if ( reg->space_id == GAS_SYSTEM_IOSPACE ) {
-        switch ( reg->bit_width ) {
-            case 8:
-                *val = inb(address);
-                return true;
-            case 16:
-                *val = inw(address);
-                return true;
-            case 32:
-                *val = inl(address);
-                return true; default:
-                printk(TBOOT_ERR"unsupported GAS bit width: %u\n", reg->bit_width);
-                return false;
-        }
-    }
-    else if ( reg->space_id == GAS_SYSTEM_MEMORY ) {
-        switch ( reg->bit_width ) {
-            case 8:
-                *val = readb(address);
-                return true;
-            case 16:
-                *val = readw(address);
-                return true;
-            case 32:
-                *val = readl(address);
-                return true;
-            default:
-                printk(TBOOT_ERR"unsupported GAS bit width: %u\n", reg->bit_width);
-                return false;
-        }
-    }
-
-    printk(TBOOT_ERR"unsupported GAS addr space ID: %u\n", reg->space_id);
-    return false;
-}
-
-static void wait_to_sleep(const tboot_acpi_sleep_info_t *acpi_sinfo)
-{
-#define WAKE_STATUS    0x8000    /* the 15th bit */
-    while ( true ) {
-        uint32_t pm1a_value = 0, pm1b_value = 0;
-
-        if ( acpi_sinfo->pm1a_evt_blk.address ) {
-            if ( read_from_reg(&acpi_sinfo->pm1a_evt_blk, &pm1a_value) &&
-                 ( pm1a_value & WAKE_STATUS ) )
-                return;
-        }
-
-        if ( acpi_sinfo->pm1b_evt_blk.address ) {
-            if ( read_from_reg(&acpi_sinfo->pm1b_evt_blk, &pm1b_value) &&
-                 ( pm1b_value & WAKE_STATUS ) )
-                return;
-        }
-    }
 }
 
 /*
