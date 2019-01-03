@@ -45,11 +45,6 @@
 /* start address of tboot MLE page table, also the beginning of tboot memory */
 #define TBOOT_BASE_ADDR          0x0800000
 
-/* address that tboot will do s3 resume at */
-/* (must be in lower 1MB (real mode) and less than Xen trampoline @ 0x8c000) */
-#define TBOOT_S3_WAKEUP_ADDR         0x8a000
-
-
 /* these addrs must be in low memory so that they are mapped by the */
 /* kernel at startup */
 

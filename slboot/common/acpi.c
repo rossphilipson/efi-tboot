@@ -444,44 +444,6 @@ static void wait_to_sleep(const tboot_acpi_sleep_info_t *acpi_sinfo)
     }
 }
 
-bool machine_sleep(const tboot_acpi_sleep_info_t *acpi_sinfo)
-{
-    dump_gas("PM1A", &acpi_sinfo->pm1a_cnt_blk);
-    dump_gas("PM1B", &acpi_sinfo->pm1b_cnt_blk);
-
-    wbinvd();
-
-    if ( acpi_sinfo->pm1a_cnt_blk.address ) {
-        if ( !write_to_reg(&acpi_sinfo->pm1a_cnt_blk, acpi_sinfo->pm1a_cnt_val) )
-            return false;;
-    }
-
-    if ( acpi_sinfo->pm1b_cnt_blk.address ) {
-        if ( !write_to_reg(&acpi_sinfo->pm1b_cnt_blk, acpi_sinfo->pm1b_cnt_val) )
-            return false;
-    }
-
-    /* just to wait, the machine may shutdown before here */
-    wait_to_sleep(acpi_sinfo);
-    return true; 
-}
-
-void set_s3_resume_vector(const tboot_acpi_sleep_info_t *acpi_sinfo,
-                          uint64_t resume_vector)
-{
-    if ( acpi_sinfo->vector_width <= 32 )
-        *(uint32_t *)(unsigned long)(acpi_sinfo->wakeup_vector) =
-                                    (uint32_t)resume_vector;
-    else if ( acpi_sinfo->vector_width <= 64 )
-        *(uint64_t *)(unsigned long)(acpi_sinfo->wakeup_vector) =
-                                    resume_vector;
-    else
-        printk(TBOOT_WARN"vector_width error.\n");
-
-    acpi_printk(TBOOT_DETA"wakeup_vector_address = %llx\n", acpi_sinfo->wakeup_vector);
-    acpi_printk(TBOOT_DETA"wakeup_vector_value = %llxx\n", resume_vector);
-}
-
 /*
  * Local variables:
  * mode: C

@@ -141,49 +141,6 @@ ENTRY(__start)
         ud2
 
 /*
- * entry point for switch to real mode and jump
- * entry point in %ebx
- */
-ENTRY(_prot_to_real)
-	/* disable interrupts */
-	cli
-	mov     0x4(%esp), %ebx
-
-	/* deal with parameter, real mode program entry point */
-	mov     %ebx, %eax
-	and     $0xffff0, %eax
-	shr     $4, %eax
-	mov     %ax, _real_mode_entry_point + 4
-	and     $0xfff0000f, %ebx
-	mov     %ebx, _real_mode_entry_point
-
-	/* load proper segments for real mode */
-	mov     $(ds16_sel), %ax
-	mov     %ax, %ds
-	mov     %ax, %es
-	mov     %ax, %fs
-	mov     %ax, %gs
-	mov     %ax, %ss
-	lidt    real_idt_desc
-	xor     %eax, %eax
-	ljmp    $(cs16_sel), $(1f)
-
-	.code16
-1:	mov     %eax, %cr0
-	mov     $0x0, %ax
-	mov     %ax, %ds
-	mov     %ax, %es
-	mov     %ax, %fs
-	mov     %ax, %gs
-	mov     %ax, %ss
-
-	.code32
-
-	DATA16
-	ADDR16
-	ljmp    *_real_mode_entry_point
-
-/*
  * interrupt handler
  */
 
@@ -263,14 +220,6 @@ idt_table:
 	.endr
 idt_table_end:
 
-/* Real Mode IDT */
-real_idt_desc:
-	.word   0x03ff
-	.long   0
-
-#include "wakeup.S"
-
-
 /*
  * stacks
  */
@@ -281,38 +230,10 @@ bsp_stack_end:
         .fill BSP_STACK_SIZE, 1, 0
 bsp_stack:
 
-ap_stacks_end:
-        .fill AP_STACK_SIZE * NR_CPUS, 1, 0
-ap_stacks:
-
-
-/*
- * page table and VMCS data for AP bringup
- */
-
-        .align PAGE_SIZE, 0
-.section ".bss.page_aligned","w"
-ENTRY(idle_pg_table)
-        .fill 1*PAGE_SIZE,1,0
-
-        .align PAGE_SIZE, 0
-ENTRY(host_vmcs)
-        .fill 1*PAGE_SIZE,1,0
-
-        .align PAGE_SIZE, 0
-/* the input info when os/vmm kerneltrap into tboot */
-ENTRY(ap_vmcs)
-        .fill NR_CPUS * PAGE_SIZE, 1, 0
-
-
 /*
  * misc. bss data
  */
 .section ".bss"
-
-_real_mode_entry_point:
-	.long   0
-	.word   0
 
 .section ".data"
 

@@ -112,14 +112,7 @@ typedef struct __packed {
 } tboot_shared_t;
 
 #define TB_SHUTDOWN_REBOOT      0
-#define TB_SHUTDOWN_S5          1
-#define TB_SHUTDOWN_S4          2
-#define TB_SHUTDOWN_S3          3
 #define TB_SHUTDOWN_HALT        4
-#define TB_SHUTDOWN_WFS         5
-
-#define TB_FLAG_AP_WAKE_SUPPORT   0x00000001  /* kernel/VMM use INIT-SIPI-SIPI
-                                                 if clear, ap_wake_* if set */
 
 /* {663C8DFF-E8B3-4b82-AABF-19EA4D057A08} */
 #define TBOOT_SHARED_UUID    {0x663c8dff, 0xe8b3, 0x4b82, 0xaabf, \

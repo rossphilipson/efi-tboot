@@ -82,7 +82,6 @@ extern struct mutex ap_lock;
 /* MLE/kernel shared data page (in boot.S) */
 extern tboot_shared_t _tboot_shared;
 extern void apply_policy(tb_error_t error);
-extern void cpu_wakeup(uint32_t cpuid, uint32_t sipi_vec);
 extern void print_event(const tpm12_pcr_event_t *evt);
 extern void print_event_2(void *evt, uint16_t alg);
 extern uint32_t print_event_2_1(void *evt);

@@ -123,33 +123,9 @@ static bool prepare_cpu(void)
     return txt_prepare_cpu();
 }
 
-static void copy_s3_wakeup_entry(void)
-{
-    if ( s3_wakeup_end - s3_wakeup_16 > PAGE_SIZE ) {
-        printk(TBOOT_ERR"S3 entry is too large to be copied into one page!\n");
-        return;
-    }
-
-    /* backup target address space first */
-    tb_memcpy(g_saved_s3_wakeup_page, (void *)TBOOT_S3_WAKEUP_ADDR,
-           s3_wakeup_end - s3_wakeup_16);
-
-    /* copy s3 entry into target mem */
-    tb_memcpy((void *)TBOOT_S3_WAKEUP_ADDR, s3_wakeup_16,
-           s3_wakeup_end - s3_wakeup_16);
-}
-
-void cpu_wakeup(uint32_t cpuid, uint32_t sipi_vec)
-{
-    printk(TBOOT_INFO"cpu %u waking up, SIPI vector=%x\n", cpuid, sipi_vec);
-
-    /* change to real mode and then jump to SIPI vector */
-    _prot_to_real(sipi_vec);
-}
-
 #define ICR_LOW 0x300
 
-void startup_rlps(void)
+static void startup_rlps(void)
 {
     uint32_t rlp_count = ((cpuid_ecx(1) >> 16) & 0xff) - 1;
     uint32_t apicbase = (uint32_t)rdmsr(MSR_APICBASE) & 0xfffffffffffff000;
@@ -161,7 +137,7 @@ void startup_rlps(void)
     writel(apicbase + ICR_LOW, 0xc0500);
 }
 
-void launch_racm(void)
+static void launch_racm(void)
 {
     tb_error_t err;
 
@@ -169,7 +145,7 @@ void launch_racm(void)
     /* SMX must be supported */
     if ( !(cpuid_ecx(1) & CPUID_X86_FEATURE_SMX) )
         apply_policy(TB_ERR_SMX_NOT_SUPPORTED);
-        
+
     /* Enable SMX */
     write_cr4(read_cr4() | CR4_SMXE);
 
@@ -187,7 +163,7 @@ void launch_racm(void)
     /* Verify loader context */
     if ( !verify_loader_context(g_ldr_ctx) )
         apply_policy(TB_ERR_FATAL);
-    
+
     /* load racm */
     err = txt_launch_racm(g_ldr_ctx);
     apply_policy(err);
@@ -197,14 +173,14 @@ static void shutdown_system(uint32_t);
 void check_racm_result(void)
 {
     txt_get_racm_error();
-    shutdown_system(TB_SHUTDOWN_HALT); 
+    shutdown_system(TB_SHUTDOWN_HALT);
 }
 
 void begin_launch(void *addr, uint32_t magic)
 {
     tb_error_t err;
 
-    if (g_ldr_ctx->type == 0)        
+    if (g_ldr_ctx->type == 0)
         determine_loader_type(addr, magic);
 
     /* on pre-SENTER boot, copy command line to buffer in tboot image
@@ -239,14 +215,11 @@ void begin_launch(void *addr, uint32_t magic)
 
     if (is_launched()) printk(TBOOT_INFO"SINIT ACM successfully returned...\n");
     if ( s3_flag ) printk(TBOOT_INFO"Resume from S3...\n");
-    
+
     /* RLM scaffolding
        if (g_ldr_ctx->type == 2)
        print_loader_ctx(g_ldr_ctx);
     */
-
-    /* clear resume vector on S3 resume so any resets will not use it */
-    if ( !is_launched() && s3_flag )        set_s3_resume_vector(&_tboot_shared.acpi_sinfo, 0);
 
     /* we should only be executing on the BSP */
     if ( !(rdmsr(MSR_APICBASE) & APICBASE_BSP) ) {
@@ -338,9 +311,7 @@ void begin_launch(void *addr, uint32_t magic)
 
 static void shutdown_system(uint32_t shutdown_type)
 {
-    static const char *types[] = { "TB_SHUTDOWN_REBOOT", "TB_SHUTDOWN_S5",
-                                   "TB_SHUTDOWN_S4", "TB_SHUTDOWN_S3",
-                                   "TB_SHUTDOWN_HALT" };
+    static const char *types[] = { "TB_SHUTDOWN_REBOOT", "TB_SHUTDOWN_HALT" };
     char type[32];
 
     if ( shutdown_type >= ARRAY_SIZE(types) )
@@ -352,18 +323,6 @@ static void shutdown_system(uint32_t shutdown_type)
     printk(TBOOT_INFO"shutdown_system() called for shutdown_type: %s\n", type);
 
     switch( shutdown_type ) {
-        case TB_SHUTDOWN_S3:
-            copy_s3_wakeup_entry();
-            /* write our S3 resume vector to ACPI resume addr */
-            set_s3_resume_vector(&_tboot_shared.acpi_sinfo,  TBOOT_S3_WAKEUP_ADDR);
-            /* fall through for rest of Sx handling */
-        /* FALLTHROUGH */
-        case TB_SHUTDOWN_S4:
-        case TB_SHUTDOWN_S5:
-            machine_sleep(&_tboot_shared.acpi_sinfo);
-            /* if machine_sleep() fails, fall through to reset */
-
-        /* FALLTHROUGH */
         case TB_SHUTDOWN_REBOOT:
             if ( txt_is_powercycle_required() ) {
                 /* powercycle by writing 0x0a+0x0e to port 0xcf9 */
@@ -393,8 +352,7 @@ static void shutdown_system(uint32_t shutdown_type)
 void handle_exception(void)
 {
     printk(TBOOT_INFO"received exception; shutting down...\n");
-    _tboot_shared.shutdown_type = TB_SHUTDOWN_REBOOT;
-    shutdown_system(_tboot_shared.shutdown_type);
+    shutdown_system(TB_SHUTDOWN_HALT);
 }
 
 /*
