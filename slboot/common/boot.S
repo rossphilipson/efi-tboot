@@ -86,7 +86,7 @@ multiboot2_header:
         .long multiboot2_header_end - multiboot2_header
         /* checksum */
         .long -(MB2_HEADER_MAGIC + MB2_ARCH_X86 + (multiboot2_header_end - multiboot2_header))
-multiboot2_header_end:	
+multiboot2_header_end:
         /* tag requests here--RLM, fix me!! Well, maybe! */
         .short MB2_HDR_TAG_END
         .short 0
@@ -97,66 +97,6 @@ multiboot2_header_end:
 ENTRY(start)
 ENTRY(_start)
         jmp __start
-
-
-/* entry point post-launch, to verify memory layout */
-/* (must all be w/in one page; since _start is page-aligned, it will be; */
-/* which is why we can't call much other code (e.g. printk, TPM fns, etc.) */
-ENTRY(_post_launch_entry)
-	/* verify phys addr we were entered at is the one we expected
-	 * ebx contains the phys addr of the entry point
-	 * ecx contains the phy addr of the MLE page table
-	 */
-	cmp $_post_launch_entry, %ebx
-	jne layout_err
-
-	/* verify last entry in MLE page table is the one we expected
-	 * this is sufficient because: 1) all addrs must be phys increasing
-	 * and 2) tboot is phys contig--therefore if any page were moved to
-	 * a different phys addr then the last page would have to be different
-	 * from tboot's last page
-	 */
-	/* get addr of MLE page table from OsSinitData */
-	                          /* start of TXT heap (== BiosDataSize) */
-	mov (TXT_PRIV_CONFIG_REGS_BASE + TXTCR_HEAP_BASE), %eax
-	add (%eax), %eax                   /* skip BiosData */
-	add (%eax), %eax                   /* skip OsMleData */
-	mov (MLE_PGTBL_OFF+8)(%eax), %eax  /* addr of MLE page table */
-	/* get to page table itself (there is only one for tboot) */
-	mov (%eax), %eax          /* pgdir ptr -> pgdir */
-	/* TODO when SINIT ready */
-	/* mov (%ecx), %eax */
-	and $PAGE_MASK, %eax
-	mov (%eax), %eax          /* pgdir -> pgtbl */
-	and $PAGE_MASK, %eax
-	/* find last page (pte) */
-	mov $_mle_end, %ecx
-	sub $_mle_start, %ecx     /* size of MLE */
-	shr $PAGE_SHIFT-3, %ecx
-	sub $8, %ecx              /* size/4k*8 is offset+1 of last pte */
-	add %ecx, %eax
-	mov (%eax), %eax          /* pte of last page */
-	and $PAGE_MASK, %eax
-	/* calc expected addr of last page */
-	mov $(_mle_end - 1), %ebx /* addr of last byte of MLE... */
-	and $PAGE_MASK, %ebx      /* ...rounded to page start */
-	/* are they equal? */
-	cmp %ebx, %eax
-	je __start                /* yes, so continue with normal launch */
-
-layout_err:       /* layout check failed so TXT RESET */
-	                 /* set a special error code */
-	movl $LAYOUT_ERR, (TXT_PRIV_CONFIG_REGS_BASE + TXTCR_ERRORCODE)
-	                 /* unlock memory config (and serialize) */
-	movl $1, (TXT_PRIV_CONFIG_REGS_BASE + TXTCR_CMD_UNLOCK_MEM_CONFIG)
-	movl (TXT_PRIV_CONFIG_REGS_BASE + TXTCR_STS), %eax
-	                 /* TXT RESET */
-	movl $1, (TXT_PRIV_CONFIG_REGS_BASE + TXTCR_CMD_RESET)
-	mov $6, %eax
-	mov $0xcf9, %edx
-	out %al, (%dx)   /* for debug chipsets where TXT RESET may not work */
-	ud2
-
 
 ENTRY(__start)
         /* Set up a few descriptors: on entry only CS is guaranteed good. */
@@ -216,51 +156,6 @@ ENTRY(_mini_guest)
 	jmp 1b
 
 #include "shutdown.S"
-
-/*
- * entry point for GETSEC[WAKEUP]
- */
-ENTRY(_txt_wakeup)
-	# prepare this thread for C code
-        /* Set up a few descriptors: on entry only CS is guaranteed good. */
-        lgdt    %cs:gdt_descr
-        mov     $0x10, %ecx
-        mov     %ecx, %ds
-        mov     %ecx, %es
-        mov     %ecx, %fs
-        mov     %ecx, %gs
-        mov     %ecx, %ss
-        ljmp    $(cs_sel), $(1f)
-
-        /* Load IDT */
-1:	lidt    idt_descr
-
-        /* enable MCE */
-        mov     %cr4,%eax
-        or      $CR4_MCE,%eax
-        mov     %eax,%cr4
-
-	# get initial 32-bit local APIC ID for this processor
-	mov	$0x0b, %eax
-	xor	%edx, %edx
-	cpuid
-
-	# set stack as id-based offset from AP stack base
-	# spin hlt if we exceed, since C code can't handle shared stack
-	cmp	$NR_CPUS, %edx
-	jl      3f
-	# TBD: increment global counter so BSP can tell we exceeded NR_CPUS
-2:	cli
-	hlt
-	jmp     2b
-3:	mov     $AP_STACK_SIZE, %eax
-	mul	%edx
-	mov	$ap_stacks, %ecx
-	sub	%eax, %ecx
-	mov	%ecx, %esp
-
-	call	txt_cpu_wakeup
-
 
 /*
  * entry point for switch to real mode and jump

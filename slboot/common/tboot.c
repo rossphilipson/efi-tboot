@@ -77,7 +77,6 @@ extern void verify_all_modules(loader_ctx *lctx);
 extern void verify_all_nvindices(void);
 extern void apply_policy(tb_error_t error);
 extern void verify_IA32_se_svn_status(const acm_hdr_t *acm_hdr);
-void s3_launch(void);
 extern __data u32 handle2048;
 extern __data tpm_contextsave_out tpm2_context_saved;
 /* counter timeout for waiting for all APs to exit guests */
@@ -143,119 +142,6 @@ static void copy_s3_wakeup_entry(void)
     /* copy s3 entry into target mem */
     tb_memcpy((void *)TBOOT_S3_WAKEUP_ADDR, s3_wakeup_16,
            s3_wakeup_end - s3_wakeup_16);
-}
-
-static void restore_saved_s3_wakeup_page(void)
-{
-    /* restore saved page */
-    tb_memcpy((void *)TBOOT_S3_WAKEUP_ADDR, g_saved_s3_wakeup_page,
-           s3_wakeup_end - s3_wakeup_16);
-}
-
-static void post_launch(void)
-{
-    uint64_t base, size;
-    tb_error_t err;
-    struct tpm_if *tpm = get_tpm();
-    const struct tpm_if_fp *tpm_fp = get_tpm_fp();
-    extern tboot_log_t *g_log;
-    extern void shutdown_entry(void);
-
-    printk(TBOOT_INFO"measured launch succeeded\n");
-
-    /* init MLE/kernel shared data page early, .num_in_wfs used in ap wakeup*/
-    _tboot_shared.num_in_wfs = 0;
-
-    txt_post_launch();
-
-    /* backup DMAR table */
-    if ( get_tboot_save_vtd() )
-        save_vtd_dmar_table();
-
-    if ( s3_flag  )    
-         s3_launch();
-
-    /* remove all TXT sinit acm modules before verifying modules */
-    remove_txt_modules(g_ldr_ctx);
-
-    /*
-     * verify e820 table and adjust it to protect our memory regions
-     */
-
-    /* marked mem regions used by TXT (heap, SINIT, etc.) as E820_RESERVED */
-    err = txt_protect_mem_regions();
-    apply_policy(err);
-
-    /* ensure all modules are in RAM */
-    if ( !verify_modules(g_ldr_ctx) )     apply_policy(TB_ERR_POST_LAUNCH_VERIFICATION);
-
-    /* verify that tboot is in valid RAM (i.e. E820_RAM) */
-    base = (uint64_t)TBOOT_BASE_ADDR;
-    size = (uint64_t)((unsigned long)&_end - base);
-    printk(TBOOT_INFO"verifying tboot and its page table (%Lx - %Lx) in e820 table\n\t",  base, (base + size - 1));
-    if ( e820_check_region(base, size) != E820_RAM ) {
-        printk(TBOOT_ERR": failed.\n");
-        apply_policy(TB_ERR_FATAL);
-    }
-    else
-        printk(TBOOT_INFO": succeeded.\n");
-
-    /* protect ourselves, MLE page table, and MLE/kernel shared page */
-    base = (uint64_t)TBOOT_BASE_ADDR;
-    size = (uint64_t)get_tboot_mem_end() - base;
-    uint32_t mem_type = is_kernel_linux() ? E820_RESERVED : E820_UNUSABLE;
-    printk(TBOOT_INFO"protecting tboot (%Lx - %Lx) in e820 table\n", base,      (base + size - 1));
-    if ( !e820_protect_region(base, size, mem_type) )      
-        apply_policy(TB_ERR_FATAL);
-
-    /*
-     * verify modules against policy
-     */
-    verify_all_modules(g_ldr_ctx);
-
-    /*
-     * verify nv indices against policy
-     */
-    if ( (tpm->major == TPM12_VER_MAJOR) &&  get_tboot_measure_nv() ) 
-	verify_all_nvindices();
-
-    /*
-     * seal hashes of modules and VL policy to current value of PCR17 & 18
-     */
-    if ( !seal_pre_k_state() )        
-	apply_policy(TB_ERR_S3_INTEGRITY);
-
-	
-    if ( tpm->major == TPM20_VER_MAJOR ) {
-	tpm_fp->context_save(tpm, tpm->cur_loc, handle2048, &tpm2_context_saved);
-    }
-
-	/*
-     * init MLE/kernel shared data page
-     */
-    tb_memset(&_tboot_shared, 0, PAGE_SIZE);
-    _tboot_shared.uuid = (uuid_t)TBOOT_SHARED_UUID;
-    _tboot_shared.version = 6;
-    _tboot_shared.log_addr = (uint32_t)g_log;
-    _tboot_shared.shutdown_entry = (uint32_t)shutdown_entry;
-    _tboot_shared.tboot_base = (uint32_t)&_start;
-    _tboot_shared.tboot_size = (uint32_t)&_end - (uint32_t)&_start;
-    uint32_t key_size = sizeof(_tboot_shared.s3_key);
-    if ( !tpm_fp->get_random(tpm, 2, _tboot_shared.s3_key, &key_size) || key_size != sizeof(_tboot_shared.s3_key) )
-        apply_policy(TB_ERR_S3_INTEGRITY);
-    _tboot_shared.num_in_wfs = atomic_read(&ap_wfs_count);
-    if ( use_mwait() ) {
-        _tboot_shared.flags |= TB_FLAG_AP_WAKE_SUPPORT;
-        _tboot_shared.ap_wake_trigger = AP_WAKE_TRIGGER_DEF;
-    }
-    else if ( get_tboot_mwait() ) {
-        printk(TBOOT_ERR"ap_wake_mwait specified but the CPU doesn't support it.\n");
-    }
-
-    print_tboot_shared(&_tboot_shared);
-
-    launch_kernel(true);
-    apply_policy(TB_ERR_FATAL);
 }
 
 void cpu_wakeup(uint32_t cpuid, uint32_t sipi_vec)
@@ -427,12 +313,6 @@ void begin_launch(void *addr, uint32_t magic)
     if ( !s3_flag && !verify_loader_context(g_ldr_ctx) )
         apply_policy(TB_ERR_FATAL);
 
-    /* this is being called post-measured launch */
-    if ( is_launched() ){
-        printk(TBOOT_INFO"Post_launch started ...\n");
-	post_launch();
-    }
-
     /* make the CPU ready for measured launch */
     if ( !prepare_cpu() )
         apply_policy(TB_ERR_FATAL);
@@ -459,40 +339,6 @@ void begin_launch(void *addr, uint32_t magic)
     /* launch the measured environment */
     err = txt_launch_environment(g_ldr_ctx);
     apply_policy(err);
-}
-
-void s3_launch(void)
-{
-    struct tpm_if *tpm = get_tpm();
-    const struct tpm_if_fp *tpm_fp = get_tpm_fp();
-    /* restore backed-up s3 wakeup page */
-    restore_saved_s3_wakeup_page();
-    /* load saved tpm2 context for unseal */
-    if ( tpm->major == TPM20_VER_MAJOR ) {
-        tpm_fp->context_flush(tpm, tpm->cur_loc, handle2048);
-        tpm_fp->context_load(tpm, tpm->cur_loc, &tpm2_context_saved, &handle2048);
-    }
-
-    /* remove DMAR table if necessary */
-    if ( get_tboot_save_vtd() )
-        remove_vtd_dmar_table();
-
-    if ( !is_launched() )
-        apply_policy(TB_ERR_S3_INTEGRITY);
-    else {
-        /* this is being called post-measured launch */
-        /* verify saved hash integrity and re-extend PCRs */
-        if ( !verify_integrity() )
-            apply_policy(TB_ERR_S3_INTEGRITY);
-    }
-
-    print_tboot_shared(&_tboot_shared);
-
-    /* (optionally) pause when transferring kernel resume */
-    if ( g_vga_delay > 0 )
-        delay(g_vga_delay * 1000);
-
-    _prot_to_real(g_post_k_s3_state.kernel_s3_resume_vector);
 }
 
 static void shutdown_system(uint32_t shutdown_type)

@@ -683,6 +683,8 @@ find_lcp_module(loader_ctx *lctx, void **base, uint32_t *size)
 
 /*
  * remove (all) SINIT and LCP policy data modules (if present)
+ *
+ * TODO do this in slboot before launch?
  */
 bool 
 remove_txt_modules(loader_ctx *lctx)
@@ -1530,37 +1532,6 @@ find_module_by_file_signature(loader_ctx *lctx, void **base,
 {
     return find_module(lctx, base, size, 
                        file_signature, tb_strlen(file_signature));
-}
-
-bool 
-verify_modules(loader_ctx *lctx)
-{
-    uint64_t base, size;
-    module_t *m;
-    uint32_t module_count;
-
-    if (LOADER_CTX_BAD(lctx))
-        return false;
-        
-    module_count = get_module_count(lctx);
-        
-    /* verify e820 map to make sure each module is OK in e820 map */
-    /* check modules in mbi should be in RAM */
-    for ( unsigned int i = 0; i < module_count; i++ ) {
-        m = get_module(lctx,i);
-        base = m->mod_start;
-        size = m->mod_end - m->mod_start;
-        printk(TBOOT_INFO
-               "verifying module %d of mbi (%Lx - %Lx) in e820 table\n\t",
-               i, base, (base + size - 1));
-        if ( e820_check_region(base, size) != E820_RAM ) {
-            printk(TBOOT_ERR": failed.\n");
-            return false;
-        }
-        else
-            printk(TBOOT_INFO": succeeded.\n");
-    }
-    return true;
 }
 
 char *get_module_cmd(loader_ctx *lctx, module_t *mod)

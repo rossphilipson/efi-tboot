@@ -63,7 +63,6 @@
 #include <txt/heap.h>
 
 extern void shutdown(void);
-extern void s3_launch(void);
 
 /* MLE/kernel shared data page (in boot.S) */
 extern tboot_shared_t _tboot_shared;
@@ -588,10 +587,11 @@ void apply_policy(tb_error_t error)
         case TB_POLACT_UNMEASURED_LAUNCH:
             /* restore mtrr state saved before */
             restore_mtrrs(NULL);
+/*
             if ( s3_flag )
                 s3_launch();
             else
-                launch_kernel(false);
+                launch_kernel(false);*/
             break; /* if launch xen fails, do halt at the end */
         case TB_POLACT_HALT:
             break; /* do halt at the end */
@@ -745,33 +745,6 @@ static void verify_g_policy(void)
         }
     }
 } 
-
-void verify_all_modules(loader_ctx *lctx)
-{
-    /* assumes mbi is valid */
-    verify_g_policy();
-
-    /* module 0 is always extended to PCR 18, so add entry for it */
-    apply_policy(verify_module(get_module(lctx, 0), NULL, g_policy->hash_alg));
-
-    /* now verify each module and add its hash */
-    for ( unsigned int i = 0; i < get_module_count(lctx); i++ ) {
-        module_t *module = get_module(lctx, i);
-        tb_policy_entry_t *pol_entry = find_policy_entry(g_policy, i);
-        if ( module == NULL ) {
-            printk(TBOOT_ERR"missing module entry %u\n", i);
-            apply_policy(TB_ERR_MODULE_VERIFICATION_FAILED);
-        }
-        else if ( pol_entry == NULL ) {
-            printk(TBOOT_ERR"policy entry for module %u not found\n", i);
-            apply_policy(TB_ERR_MODULES_NOT_IN_POLICY);
-        }
-        else
-            apply_policy(verify_module(module, pol_entry, g_policy->hash_alg));
-    }
-
-    printk(TBOOT_INFO"all modules are verified\n");
-}
 
 static int find_first_nvpolicy_entry(const tb_policy_t *policy)
 {

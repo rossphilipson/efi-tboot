@@ -268,72 +268,6 @@ static bool reserve_vtd_delta_mem(uint64_t min_lo_ram, uint64_t max_lo_ram,
     return true;
 }
 
-static bool verify_vtd_pmrs(txt_heap_t *txt_heap)
-{
-    os_sinit_data_t *os_sinit_data, tmp_os_sinit_data;
-    uint64_t min_lo_ram, max_lo_ram, min_hi_ram, max_hi_ram;
-
-    os_sinit_data = get_os_sinit_data_start(txt_heap);
-
-    /*
-     * make sure the VT-d PMRs were actually set to cover what
-     * we expect
-     */
-
-    /* calculate what they should have been */
-    /* no e820 table on S3 resume, so use saved (sealed) values */
-    if ( s3_flag ) {
-        min_lo_ram = g_pre_k_s3_state.vtd_pmr_lo_base;
-        max_lo_ram = min_lo_ram + g_pre_k_s3_state.vtd_pmr_lo_size;
-        min_hi_ram = g_pre_k_s3_state.vtd_pmr_hi_base;
-        max_hi_ram = min_hi_ram + g_pre_k_s3_state.vtd_pmr_hi_size;
-    }
-    else {
-        if ( !get_ram_ranges(&min_lo_ram, &max_lo_ram,
-                             &min_hi_ram, &max_hi_ram) )
-            return false;
-
-        /* if vtd_pmr_lo/hi sizes rounded to 2MB granularity are less than the
-           max_lo/hi_ram values determined from the e820 table, then we must
-           reserve the differences in e820 table so that unprotected memory is
-           not used by the kernel */
-        if ( !reserve_vtd_delta_mem(min_lo_ram, max_lo_ram, min_hi_ram,
-                                    max_hi_ram) ) {
-            printk(TBOOT_ERR"failed to reserve VT-d PMR delta memory\n");
-            return false;
-        }
-    }
-
-    /* compare to current values */
-    tb_memset(&tmp_os_sinit_data, 0, sizeof(tmp_os_sinit_data));
-    tmp_os_sinit_data.version = os_sinit_data->version;
-    set_vtd_pmrs(&tmp_os_sinit_data, min_lo_ram, max_lo_ram, min_hi_ram,
-                 max_hi_ram);
-    if ( (tmp_os_sinit_data.vtd_pmr_lo_base !=
-          os_sinit_data->vtd_pmr_lo_base) ||
-         (tmp_os_sinit_data.vtd_pmr_lo_size !=
-          os_sinit_data->vtd_pmr_lo_size) ||
-         (tmp_os_sinit_data.vtd_pmr_hi_base !=
-          os_sinit_data->vtd_pmr_hi_base) ||
-         (tmp_os_sinit_data.vtd_pmr_hi_size !=
-          os_sinit_data->vtd_pmr_hi_size) ) {
-        printk(TBOOT_ERR"OS to SINIT data VT-d PMR settings do not match:\n");
-        print_os_sinit_data_vtdpmr(&tmp_os_sinit_data);
-        print_os_sinit_data_vtdpmr(os_sinit_data);
-        return false;
-    }
-
-    if ( !s3_flag ) {
-        /* save the verified values so that they can be sealed for S3 */
-        g_pre_k_s3_state.vtd_pmr_lo_base = os_sinit_data->vtd_pmr_lo_base;
-        g_pre_k_s3_state.vtd_pmr_lo_size = os_sinit_data->vtd_pmr_lo_size;
-        g_pre_k_s3_state.vtd_pmr_hi_base = os_sinit_data->vtd_pmr_hi_base;
-        g_pre_k_s3_state.vtd_pmr_hi_size = os_sinit_data->vtd_pmr_hi_size;
-    }
-
-    return true;
-}
-
 void set_vtd_pmrs(os_sinit_data_t *os_sinit_data,
                   uint64_t min_lo_ram, uint64_t max_lo_ram,
                   uint64_t min_hi_ram, uint64_t max_hi_ram)
@@ -387,37 +321,6 @@ tb_error_t txt_verify_platform(void)
     txt_heap = get_txt_heap();
     if ( !verify_bios_data(txt_heap) )
         return TB_ERR_TXT_NOT_SUPPORTED;
-
-    return TB_ERR_NONE;
-}
-
-static bool verify_saved_mtrrs(txt_heap_t *txt_heap)
-{
-    os_mle_data_t *os_mle_data;
-    os_mle_data = get_os_mle_data_start(txt_heap);
-
-    return validate_mtrrs(&(os_mle_data->saved_mtrr_state));
-}
-
-tb_error_t txt_post_launch_verify_platform(void)
-{
-    txt_heap_t *txt_heap;
-
-    /*
-     * verify some of the heap structures
-     */
-    txt_heap = get_txt_heap();
-
-    if ( !verify_txt_heap(txt_heap, false) )
-        return TB_ERR_POST_LAUNCH_VERIFICATION;
-
-    /* verify the saved MTRRs */
-    if ( !verify_saved_mtrrs(txt_heap) )
-        return TB_ERR_POST_LAUNCH_VERIFICATION;
-
-    /* verify that VT-d PMRs were really set as required */
-    if ( !verify_vtd_pmrs(txt_heap) )
-        return TB_ERR_POST_LAUNCH_VERIFICATION;
 
     return TB_ERR_NONE;
 }

@@ -102,31 +102,6 @@ static bool extend_pcrs(void)
     return true;
 }
 
-static void print_pre_k_s3_state(void)
-{
-    struct tpm_if *tpm = get_tpm();
-    
-    printk(TBOOT_DETA"pre_k_s3_state:\n");
-    printk(TBOOT_DETA"\t vtd_pmr_lo_base: 0x%Lx\n", g_pre_k_s3_state.vtd_pmr_lo_base);
-    printk(TBOOT_DETA"\t vtd_pmr_lo_size: 0x%Lx\n", g_pre_k_s3_state.vtd_pmr_lo_size);
-    printk(TBOOT_DETA"\t vtd_pmr_hi_base: 0x%Lx\n", g_pre_k_s3_state.vtd_pmr_hi_base);
-    printk(TBOOT_DETA"\t vtd_pmr_hi_size: 0x%Lx\n", g_pre_k_s3_state.vtd_pmr_hi_size);
-    printk(TBOOT_DETA"\t pol_hash: ");
-    print_hash(&g_pre_k_s3_state.pol_hash, tpm->cur_alg);
-    printk(TBOOT_DETA"\t VL measurements:\n");
-    for ( unsigned int i = 0; i < g_pre_k_s3_state.num_vl_entries; i++ ) {
-        printk(TBOOT_DETA"\t   PCR %d (alg count %d):\n",
-                g_pre_k_s3_state.vl_entries[i].pcr,
-                g_pre_k_s3_state.vl_entries[i].hl.count);
-        for ( unsigned int j = 0; j < g_pre_k_s3_state.vl_entries[i].hl.count; j++ ) {
-            printk(TBOOT_DETA"\t\t   alg %04X: ",
-                    g_pre_k_s3_state.vl_entries[i].hl.entries[j].alg);
-            print_hash(&g_pre_k_s3_state.vl_entries[i].hl.entries[j].hash,
-                    g_pre_k_s3_state.vl_entries[i].hl.entries[j].alg);
-        }
-    }
-}
-
 static void print_post_k_s3_state(void)
 {
     printk(TBOOT_DETA"post_k_s3_state:\n");
@@ -208,54 +183,6 @@ static bool verify_sealed_data(const uint8_t *sealed_data,  uint32_t sealed_data
     tb_memset(&blob, 0, sizeof(blob));
 
     return !err;
-}
-
-/*
- * pre- PCR extend/kernel launch S3 data are sealed to PCRs 17+18 with
- * post-launch values (i.e. before extending)
- */
-bool seal_pre_k_state(void)
-{
-    struct tpm_if *tpm = get_tpm();
-    const struct tpm_if_fp *tpm_fp = get_tpm_fp();
-    
-    /* save hash of current policy into g_pre_k_s3_state */
-    tb_memset(&g_pre_k_s3_state.pol_hash, 0, sizeof(g_pre_k_s3_state.pol_hash));
-    if ( !hash_policy(&g_pre_k_s3_state.pol_hash, tpm->cur_alg) ) {
-        printk(TBOOT_ERR"failed to hash policy\n");
-        goto error;
-    }
-
-    print_pre_k_s3_state();
-
-    /* read PCR 17/18, only for tpm1.2 */
-    if ( tpm->major == TPM12_VER_MAJOR ) {
-        if ( !tpm_fp->pcr_read(tpm, 2, 17, &post_launch_pcr17) ||
-             !tpm_fp->pcr_read(tpm, 2, 18, &post_launch_pcr18) )
-            goto error;
-    }
-
-    sealed_pre_k_state_size = sizeof(sealed_pre_k_state);
-    if ( !seal_data(&g_pre_k_s3_state, sizeof(g_pre_k_s3_state),
-                    NULL, 0,
-                    sealed_pre_k_state, &sealed_pre_k_state_size) )
-        goto error;
-
-    /* we can't leave the system in a state without valid measurements of
-       about-to-execute code in the PCRs, so this is a fatal error */
-    if ( !extend_pcrs() ) {
-        apply_policy(TB_ERR_FATAL);
-        return false;
-    }
-
-    return true;
-
-    /* even if sealing fails, we must extend PCRs to represent valid
-       measurements of about-to-execute code */
- error:
-    if ( !extend_pcrs() )
-        apply_policy(TB_ERR_FATAL);
-    return false;
 }
 
 static bool measure_memory_integrity(vmac_t *mac, uint8_t key[VMAC_KEY_LEN/8])

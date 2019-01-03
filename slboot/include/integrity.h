@@ -88,7 +88,6 @@ typedef struct {
 extern pre_k_s3_state_t g_pre_k_s3_state;
 extern post_k_s3_state_t g_post_k_s3_state;
 
-extern bool seal_pre_k_state(void);
 extern bool seal_post_k_state(void);
 extern bool verify_integrity(void);
 

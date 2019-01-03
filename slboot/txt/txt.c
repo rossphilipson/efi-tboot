@@ -74,8 +74,7 @@ extern char _start[];             /* start of module */
 extern char _end[];               /* end of module */
 extern char _mle_start[];         /* start of text section */
 extern char _mle_end[];           /* end of text section */
-extern char _post_launch_entry[]; /* entry point post SENTER, in boot.S */
-extern char _txt_wakeup[];        /* RLP join address for GETSEC[WAKEUP] */
+/*extern char _post_launch_entry[];*/ /* entry point post SENTER, in boot.S */
 
 extern long s3_flag;
 
@@ -97,7 +96,7 @@ static __text const mle_hdr_t g_mle_hdr = {
     uuid              :  MLE_HDR_UUID,
     length            :  sizeof(mle_hdr_t),
     version           :  MLE_HDR_VER,
-    entry_point       :  (uint32_t)&_post_launch_entry - TBOOT_START,
+    entry_point       :  0, /*(uint32_t)&_post_launch_entry - TBOOT_START,*/
     first_valid_page  :  0,
     mle_start_off     :  (uint32_t)&_mle_start - TBOOT_BASE_ADDR,
     mle_end_off       :  (uint32_t)&_mle_end - TBOOT_BASE_ADDR,
@@ -120,8 +119,6 @@ static void print_file_info(void)
     printk(TBOOT_DETA"\t &_end=%p\n", &_end);
     printk(TBOOT_DETA"\t &_mle_start=%p\n", &_mle_start);
     printk(TBOOT_DETA"\t &_mle_end=%p\n", &_mle_end);
-    printk(TBOOT_DETA"\t &_post_launch_entry=%p\n", &_post_launch_entry);
-    printk(TBOOT_DETA"\t &_txt_wakeup=%p\n", &_txt_wakeup);
     printk(TBOOT_DETA"\t &g_mle_hdr=%p\n", &g_mle_hdr);
 }
 
@@ -690,88 +687,6 @@ static txt_heap_t *init_txt_heap(void *ptab_base, acm_hdr_t *sinit, loader_ctx *
     return txt_heap;
 }
 
-static void txt_wakeup_cpus(void)
-{
-    uint16_t cs;
-    mle_join_t mle_join;
-    unsigned int ap_wakeup_count;
-
-    if ( !verify_stm(get_apicid()) )
-        apply_policy(TB_ERR_POST_LAUNCH_VERIFICATION);
-
-    /* enable SMIs on BSP before waking APs (which will enable them on APs)
-       because some SMM may take immediate SMI and hang if AP gets in first */
-    printk(TBOOT_DETA"enabling SMIs on BSP\n");
-    __getsec_smctrl();
-
-    atomic_set(&ap_wfs_count, 0);
-
-    /* RLPs will use our GDT and CS */
-    extern char gdt_table[], gdt_table_end[];
-    __asm__ __volatile__ ("mov %%cs, %0\n" : "=r"(cs));
-
-    mle_join.entry_point = (uint32_t)(unsigned long)&_txt_wakeup;
-    mle_join.seg_sel = cs;
-    mle_join.gdt_base = (uint32_t)gdt_table;
-    mle_join.gdt_limit = gdt_table_end - gdt_table - 1;
-
-    printk(TBOOT_DETA"mle_join.entry_point = %x\n", mle_join.entry_point);
-    printk(TBOOT_DETA"mle_join.seg_sel = %x\n", mle_join.seg_sel);
-    printk(TBOOT_DETA"mle_join.gdt_base = %x\n", mle_join.gdt_base);
-    printk(TBOOT_DETA"mle_join.gdt_limit = %x\n", mle_join.gdt_limit);
-
-    write_priv_config_reg(TXTCR_MLE_JOIN, (uint64_t)(unsigned long)&mle_join);
-
-    mtx_init(&ap_lock);
-
-    txt_heap_t *txt_heap = get_txt_heap();
-    sinit_mle_data_t *sinit_mle_data = get_sinit_mle_data_start(txt_heap);
-    os_sinit_data_t *os_sinit_data = get_os_sinit_data_start(txt_heap);
-
-    /* choose wakeup mechanism based on capabilities used */
-    if ( os_sinit_data->capabilities.rlp_wake_monitor ) {
-        printk(TBOOT_INFO"joining RLPs to MLE with MONITOR wakeup\n");
-        printk(TBOOT_DETA"rlp_wakeup_addr = 0x%x\n", sinit_mle_data->rlp_wakeup_addr);
-        *((uint32_t *)(unsigned long)(sinit_mle_data->rlp_wakeup_addr)) = 0x01;
-    }
-    else {
-        printk(TBOOT_INFO"joining RLPs to MLE with GETSEC[WAKEUP]\n");
-        __getsec_wakeup();
-        printk(TBOOT_INFO"GETSEC[WAKEUP] completed\n");
-    }
-
-    /* assume BIOS isn't lying to us about # CPUs, else some CPUS may not */
-    /* have entered wait-for-sipi before we launch *or* we have to wait */
-    /* for timeout before launching */
-    /* (all TXT-capable CPUs have at least 2 cores) */
-    bios_data_t *bios_data = get_bios_data_start(txt_heap);
-    ap_wakeup_count = bios_data->num_logical_procs - 1;
-    if ( ap_wakeup_count >= NR_CPUS ) {
-        printk(TBOOT_INFO"there are too many CPUs (%u)\n", ap_wakeup_count);
-        ap_wakeup_count = NR_CPUS - 1;
-    }
-
-    printk(TBOOT_INFO"waiting for all APs (%d) to enter wait-for-sipi...\n",
-           ap_wakeup_count);
-    /* wait for all APs that woke up to have entered wait-for-sipi */
-    uint32_t timeout = AP_WFS_TIMEOUT;
-    do {
-        if ( timeout % 0x8000 == 0 )
-            printk(TBOOT_INFO".");
-        else
-            cpu_relax();
-        if ( timeout % 0x200000 == 0 )
-            printk(TBOOT_INFO"\n");
-        timeout--;
-    } while ( ( atomic_read(&ap_wfs_count) < ap_wakeup_count ) &&
-              timeout > 0 );
-    printk(TBOOT_INFO"\n");
-    if ( timeout == 0 )
-        printk(TBOOT_INFO"wait-for-sipi loop timed-out\n");
-    else
-        printk(TBOOT_INFO"all APs in wait-for-sipi\n");
-}
-
 bool txt_is_launched(void)
 {
     txt_sts_t sts;
@@ -1028,60 +943,6 @@ bool txt_prepare_cpu(void)
     return true;
 }
 
-void txt_post_launch(void)
-{
-    txt_heap_t *txt_heap;
-    os_mle_data_t *os_mle_data;
-    tb_error_t err;
-
-    /* verify MTRRs, VT-d settings, TXT heap, etc. */
-    err = txt_post_launch_verify_platform();
-    /* don't return the error yet, because we need to restore settings */
-    if ( err != TB_ERR_NONE )
-        printk(TBOOT_ERR"failed to verify platform\n");
-
-    /* get saved OS state (os_mvmm_data_t) from LT heap */
-    txt_heap = get_txt_heap();
-    os_mle_data = get_os_mle_data_start(txt_heap);
-
-    /* clear error registers so that we start fresh */
-    write_priv_config_reg(TXTCR_ERRORCODE, 0x00000000);
-    write_priv_config_reg(TXTCR_ESTS, 0xffffffff);  /* write 1's to clear */
-
-    /* bring RLPs into environment (do this before restoring MTRRs to ensure */
-    /* SINIT area is mapped WB for MONITOR-based RLP wakeup) */
-    txt_wakeup_cpus();
-
-    /* restore pre-SENTER IA32_MISC_ENABLE_MSR (no verification needed)
-       (do after AP wakeup so that if restored MSR has MWAIT clear it won't
-       prevent wakeup) */
-    printk(TBOOT_DETA"saved IA32_MISC_ENABLE = 0x%08x\n", os_mle_data->saved_misc_enable_msr);
-    wrmsr(MSR_IA32_MISC_ENABLE, os_mle_data->saved_misc_enable_msr);
-    if ( use_mwait() ) {
-        /* set MONITOR/MWAIT support */
-        uint64_t misc;
-        misc = rdmsr(MSR_IA32_MISC_ENABLE);
-        misc |= MSR_IA32_MISC_ENABLE_MONITOR_FSM;
-        wrmsr(MSR_IA32_MISC_ENABLE, misc);
-    }
-
-    /* restore pre-SENTER MTRRs that were overwritten for SINIT launch */
-    restore_mtrrs(&(os_mle_data->saved_mtrr_state));
-
-    /* now, if there was an error, apply policy */
-    apply_policy(err);
-
-    /* always set the TXT.CMD.SECRETS flag */
-    write_priv_config_reg(TXTCR_CMD_SECRETS, 0x01);
-    read_priv_config_reg(TXTCR_E2STS);   /* just a fence, so ignore return */
-    printk(TBOOT_INFO"set TXT.CMD.SECRETS flag\n");
-
-    /* open TPM locality 1 */
-    write_priv_config_reg(TXTCR_CMD_OPEN_LOCALITY1, 0x01);
-    read_priv_config_reg(TXTCR_E2STS);   /* just a fence, so ignore return */
-    printk(TBOOT_INFO"opened TPM locality 1\n");
-}
-
 void ap_wait(unsigned int cpuid)
 {
     if ( cpuid >= NR_CPUS ) {
@@ -1167,59 +1028,6 @@ void txt_cpu_wakeup(void)
         ap_wait(cpuid);
     else
         handle_init_sipi_sipi(cpuid);
-}
-
-tb_error_t txt_protect_mem_regions(void)
-{
-    uint64_t base, size;
-
-    /*
-     * TXT has 2 regions of RAM that need to be reserved for use by only the
-     * hypervisor; not even dom0 should have access:
-     *   TXT heap, SINIT AC module
-     */
-
-    /* TXT heap */
-    base = read_pub_config_reg(TXTCR_HEAP_BASE);
-    size = read_pub_config_reg(TXTCR_HEAP_SIZE);
-    printk(TBOOT_INFO"protecting TXT heap (%Lx - %Lx) in e820 table\n", base,
-           (base + size - 1));
-    if ( !e820_protect_region(base, size, E820_RESERVED) )
-        return TB_ERR_FATAL;
-
-    /* SINIT */
-    base = read_pub_config_reg(TXTCR_SINIT_BASE);
-    size = read_pub_config_reg(TXTCR_SINIT_SIZE);
-    printk(TBOOT_INFO"protecting SINIT (%Lx - %Lx) in e820 table\n", base,
-           (base + size - 1));
-    if ( !e820_protect_region(base, size, E820_RESERVED) )
-        return TB_ERR_FATAL;
-
-    /* TXT private space */
-    base = TXT_PRIV_CONFIG_REGS_BASE;
-    size = TXT_CONFIG_REGS_SIZE;
-    printk(TBOOT_INFO
-           "protecting TXT Private Space (%Lx - %Lx) in e820 table\n",
-           base, (base + size - 1));
-    if ( !e820_protect_region(base, size, E820_RESERVED) )
-        return TB_ERR_FATAL;
-
-    /* ensure that memory not marked as good RAM by the MDRs is RESERVED in
-       the e820 table */
-    txt_heap_t* txt_heap = get_txt_heap();
-    sinit_mle_data_t *sinit_mle_data = get_sinit_mle_data_start(txt_heap);
-    uint32_t num_mdrs = sinit_mle_data->num_mdrs;
-    sinit_mdr_t *mdrs_base = (sinit_mdr_t *)(((void *)sinit_mle_data
-                                              - sizeof(uint64_t)) +
-                                             sinit_mle_data->mdrs_off);
-    printk(TBOOT_INFO"verifying e820 table against SINIT MDRs: ");
-    if ( !verify_e820_map(mdrs_base, num_mdrs) ) {
-        printk(TBOOT_ERR"verification failed.\n");
-        return TB_ERR_POST_LAUNCH_VERIFICATION;
-    }
-    printk(TBOOT_INFO"verification succeeded.\n");
-
-    return TB_ERR_NONE;
 }
 
 void txt_shutdown(void)
