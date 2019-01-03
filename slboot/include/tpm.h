@@ -39,7 +39,6 @@
 #include <types.h>
 #include <io.h>
 #include <hash.h>
-#include <integrity.h>
 
 /* un-comment to enable detailed command tracing */
 //#define TPM_TRACE
@@ -157,6 +156,18 @@ typedef struct __packed {
 #define TPM_ALG_ECB               0x0044
 #define TPM_ALG_LAST              0x0044
 #define TPM_ALG_MAX_NUM           (TPM_ALG_LAST - TPM_ALG_ERROR)
+
+#define MAX_ALG_NUM 5
+
+typedef struct {
+    uint16_t  alg;
+    tb_hash_t hash;
+} hash_entry_t;
+
+typedef struct {
+    uint32_t  count;
+    hash_entry_t entries[MAX_ALG_NUM];
+} hash_list_t;
 
 
 // move from tpm.c
@@ -412,10 +423,6 @@ extern u16 tboot_alg_list[];
 typedef tb_hash_t tpm_digest_t;
 typedef tpm_digest_t tpm_pcr_value_t;
 
-/* only for tpm1.2 to (un)seal */
-extern tpm_pcr_value_t post_launch_pcr17;
-extern tpm_pcr_value_t post_launch_pcr18;
-
 struct tpm_if;
 struct tpm_if_fp;
 
@@ -477,7 +484,6 @@ struct tpm_if_fp {
 
     bool (*seal)(struct tpm_if *ti, u32 locality, u32 in_data_size, const u8 *in_data, u32 *sealed_data_size, u8 *sealed_data);
     bool (*unseal)(struct tpm_if *ti, u32 locality, u32 sealed_data_size, const u8 *sealed_data, u32 *secret_size, u8 *secret);
-    bool (*verify_creation)(struct tpm_if *ti, u32 sealed_data_size, u8 *sealed_data);
 
     bool (*get_random)(struct tpm_if *ti, u32 locality, u8 *random_data, u32 *data_size);
 
@@ -487,7 +493,6 @@ struct tpm_if_fp {
     bool (*context_load)(struct tpm_if *ti, u32 locality, void *context_saved, u32 *handle);
     bool (*context_flush)(struct tpm_if *ti, u32 locality, u32 handle);
 
-    bool (*cap_pcrs)(struct tpm_if *ti, u32 locality, int pcr);
     bool (*check)(void);
 };
 

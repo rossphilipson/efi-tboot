@@ -51,7 +51,6 @@
 #include <acpi.h>
 #include <mle.h>
 #include <hash.h>
-#include <integrity.h>
 #include <cmdline.h>
 #include <txt/txt.h>
 #include <txt/smx.h>

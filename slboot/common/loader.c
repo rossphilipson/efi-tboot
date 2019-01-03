@@ -61,9 +61,6 @@
 /* copy of kernel/VMM command line so that can append 'tboot=0x1234' */
 static char *new_cmdline = (char *)TBOOT_KERNEL_CMDLINE_ADDR;
 
-/* MLE/kernel shared data page (in boot.S) */
-extern tboot_shared_t _tboot_shared;
-
 /* multiboot struct saved so that post_launch() can use it (in tboot.c) */
 extern loader_ctx *g_ldr_ctx;
 extern bool get_elf_image_range(const elf_header_t *elf, void **start, void **end);
@@ -520,72 +517,6 @@ static void *remove_module(loader_ctx *lctx, void *mod_start)
         return mod_start;
     }
     return NULL;
-}
-
-static bool adjust_kernel_cmdline(loader_ctx *lctx,
-                                  const void *tboot_shared_addr)
-{
-    const char *old_cmdline;
-
-    if (lctx == NULL)
-        return false;
-    if (lctx->addr == NULL)
-        return false;
-    if (lctx->type == MB1_ONLY || lctx->type == MB2_ONLY){
-        old_cmdline = get_cmdline(lctx);
-        if (old_cmdline == NULL)
-            old_cmdline = "";
-
-        tb_snprintf(new_cmdline, TBOOT_KERNEL_CMDLINE_SIZE, "%s tboot=%p",
-                 old_cmdline, tboot_shared_addr);
-        new_cmdline[TBOOT_KERNEL_CMDLINE_SIZE - 1] = '\0';
-
-        if (lctx->type == MB1_ONLY){
-            /* multiboot 1 */
-            multiboot_info_t *mbi = (multiboot_info_t *) lctx->addr;
-            /* assumes mbi is valid */
-            mbi->cmdline = (u32)new_cmdline;
-            mbi->flags |= MBI_CMDLINE;
-            return true;
-        }
-        if (lctx->type == MB2_ONLY){
-            /* multiboot 2 */
-            /* this is harder, since the strings sit inline */
-            /* we need to grow the mb2_tag_string that holds the cmdline.
-             * TODO: should be checking that we're not running off the
-             * end of the original MB2 space.
-             */
-            struct mb2_tag *cur = (struct mb2_tag *)(lctx->addr + 8);
-            struct mb2_tag_string *cmd;
-            cur = find_mb2_tag_type(cur, MB2_TAG_TYPE_CMDLINE);
-            cmd = (struct mb2_tag_string *) cur;
-            if (cmd == NULL){
-                printk(TBOOT_ERR"adjust_kernel_cmdline() NULL MB2 cmd\n");
-                return NULL;
-            }
-            uint32_t new_cmdline_tag_size = 2 * sizeof(uint32_t) + tb_strlen(new_cmdline) + 1;
-            if ( new_cmdline_tag_size > cmd->size ){
-                if (false ==
-                    grow_mb2_tag(lctx, cur,
-                                 (new_cmdline_tag_size - cmd->size)))
-                    return false;
-            }
-
-            /* now we're all good, except for fixing up cmd */
-            {
-                char *s = new_cmdline;
-                char *d = cmd->string;
-                while (*s){
-                    *d = *s;
-                    d++; s++;
-                }
-                *d = *s;
-            }
-            // strcpy(cmd->string, cmdbuf);
-        }
-        return true;
-    }
-    return false;
 }
 
 bool is_kernel_linux(void)
@@ -1460,8 +1391,6 @@ bool launch_kernel(bool is_measured_launch)
         return false;
 
     if ( kernel_type == ELF ) {
-        if ( is_measured_launch )
-            adjust_kernel_cmdline(g_ldr_ctx, &_tboot_shared);
         if ( !expand_elf_image((elf_header_t *)kernel_image,
                                &kernel_entry_point) )
             return false;

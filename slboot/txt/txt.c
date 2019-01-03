@@ -80,7 +80,6 @@ extern long s3_flag;
 extern struct mutex ap_lock;
 
 /* MLE/kernel shared data page (in boot.S) */
-extern tboot_shared_t _tboot_shared;
 extern void apply_policy(tb_error_t error);
 extern void print_event(const tpm12_pcr_event_t *evt);
 extern void print_event_2(void *evt, uint16_t alg);

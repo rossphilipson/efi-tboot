@@ -44,7 +44,6 @@
 #include <string.h>
 #include <tpm.h>
 #include <sha1.h>
-#include <integrity.h>
 
 /*
  * return code:
@@ -139,6 +138,9 @@ typedef uint8_t tpm_locality_selection_t;
  */
 static uint8_t     cmd_buf[TPM_CMD_SIZE_MAX];
 static uint8_t     rsp_buf[TPM_RSP_SIZE_MAX];
+
+__data tpm_pcr_value_t post_launch_pcr17, post_launch_pcr18;
+
 #define WRAPPER_IN_BUF          (cmd_buf + CMD_HEAD_SIZE)
 #define WRAPPER_OUT_BUF         (rsp_buf + RSP_HEAD_SIZE)
 #define WRAPPER_IN_MAX_SIZE     (TPM_CMD_SIZE_MAX - CMD_HEAD_SIZE)
@@ -1350,43 +1352,6 @@ static bool tpm12_cmp_creation_pcrs(uint32_t pcr_nr_create,
     return true;
 }
 
-static bool tpm12_verify_creation(struct tpm_if *ti, uint32_t sealed_data_size,
-                            uint8_t *sealed_data)
-{
-    uint8_t pcr_indcs_create[] = {17, 18};
-    tpm12_digest_t pcr17, pcr18;
-    const tpm12_digest_t *pcr_values_create[] = {&pcr17, &pcr18};
-    int i;
-
-    if ( ti == NULL || sealed_data == NULL )
-        return false;
-
-    tpm12_pcr_read(ti, 2, 17, (tpm_pcr_value_t *)&pcr17);
-    tpm12_pcr_read(ti, 2, 18, (tpm_pcr_value_t *)&pcr18);
-
-    /* to prevent rollback attack using old sealed measurements,
-       verify that (creation) PCRs at mem integrity seal time are same as
-       if we extend current PCRs with unsealed VL measurements */
-    /* TBD: we should check all DRTM PCRs */
-    for ( i = 0; i < g_pre_k_s3_state.num_vl_entries; i++ ) {
-        if ( g_pre_k_s3_state.vl_entries[i].pcr == 17 )
-            extend_hash((tb_hash_t *)&pcr17,
-                &g_pre_k_s3_state.vl_entries[i].hl.entries[0].hash, TB_HALG_SHA1);
-        else if ( g_pre_k_s3_state.vl_entries[i].pcr == 18 )
-            extend_hash((tb_hash_t *)&pcr18,
-                &g_pre_k_s3_state.vl_entries[i].hl.entries[0].hash, TB_HALG_SHA1);
-    }
-    if ( !tpm12_cmp_creation_pcrs(ARRAY_SIZE(pcr_indcs_create),
-                                pcr_indcs_create, pcr_values_create,
-                                sealed_data_size,
-                                sealed_data) ) {
-        printk(TBOOT_WARN"extended PCR values don't match creation values in sealed blob.\n");
-        return false;
-    }
-
-    return true;
-}
-
 typedef uint32_t tpm_capability_area_t;
 
 #define TPM_CAP_NV_INDEX    0x00000011
@@ -1946,38 +1911,6 @@ static bool tpm12_get_random(struct tpm_if *ti, uint32_t locality,
     return true;
 }
 
-static bool tpm12_cap_pcrs(struct tpm_if *ti, u32 locality, int pcr)
-{
-    bool was_capped[TPM_NR_PCRS] = {false};
-    tpm_pcr_value_t cap_val;   /* use whatever val is on stack */
-
-    if ( ti == NULL )
-        return false;
-
-    if (pcr >= 0) {
-        _tpm12_pcr_extend(ti, locality, pcr, &cap_val);
-        return true;
-    }
-
-    /* ensure PCRs 17 + 18 are always capped */
-    _tpm12_pcr_extend(ti, locality, 17, &cap_val);
-    _tpm12_pcr_extend(ti, locality, 18, &cap_val);
-    was_capped[17] = was_capped[18] = true;
-
-    /* also cap every dynamic PCR we extended (only once) */
-    /* don't cap static PCRs since then they would be wrong after S3 resume */
-    tb_memset(&was_capped, true, TPM_PCR_RESETABLE_MIN*sizeof(bool));
-    for ( int i = 0; i < g_pre_k_s3_state.num_vl_entries; i++ ) {
-        if ( !was_capped[g_pre_k_s3_state.vl_entries[i].pcr] ) {
-            _tpm12_pcr_extend(ti, locality, g_pre_k_s3_state.vl_entries[i].pcr, &cap_val);
-            was_capped[g_pre_k_s3_state.vl_entries[i].pcr] = true;
-        }
-    }
-
-    printk(TBOOT_INFO"cap'ed dynamic PCRs\n");
-    return true;
-}
-
 static bool tpm12_check(void)
 {
     uint32_t ret, out_size = 0;
@@ -1997,10 +1930,8 @@ const struct tpm_if_fp tpm_12_if_fp = {
     .get_nvindex_permission = tpm12_get_nvindex_permission,
     .seal = tpm12_seal,
     .unseal = tpm12_unseal,
-    .verify_creation = tpm12_verify_creation,
     .get_random = tpm12_get_random,
     .save_state = tpm12_save_state,
-    .cap_pcrs = tpm12_cap_pcrs,
     .check = tpm12_check,
 };
 

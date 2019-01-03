@@ -240,15 +240,4 @@ bsp_stack:
 ENTRY(s3_flag)
 	.long 0
 
-/*
- * shared data page with kernel (i.e. Xen)
- * (put at end so that not split e820 region for tboot)
- */
-.section ".tboot_shared","w"
-        .align PAGE_SIZE, 0
-
-ENTRY(_tboot_shared)
-	.fill	PAGE_SIZE,1,0
-        .align PAGE_SIZE, 0
-
 ENTRY(_end)

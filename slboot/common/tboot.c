@@ -66,14 +66,11 @@
 #include <tb_policy.h>
 #include <tboot.h>
 #include <acpi.h>
-#include <integrity.h>
 #include <cmdline.h>
 #include <tpm_20.h>
 
-extern void _prot_to_real(uint32_t dist_addr);
 extern bool set_policy(void);
 extern void verify_all_modules(loader_ctx *lctx);
-extern void verify_all_nvindices(void);
 extern void apply_policy(tb_error_t error);
 extern void verify_IA32_se_svn_status(const acm_hdr_t *acm_hdr);
 extern __data u32 handle2048;
@@ -83,23 +80,11 @@ extern __data tpm_contextsave_out tpm2_context_saved;
 
 extern long s3_flag;
 
-extern char s3_wakeup_16[];
-extern char s3_wakeup_end[];
-
 /* loader context struct saved so that post_launch() can use it */
 __data loader_ctx g_loader_ctx = { NULL, 0 };
 __data loader_ctx *g_ldr_ctx = &g_loader_ctx;
 __data uint32_t g_mb_orig_size = 0;
 
-
-/* MLE/kernel shared data page (in boot.S) */
-extern tboot_shared_t _tboot_shared;
-
-/*
- * caution: must make sure the total wakeup entry code length
- * (s3_wakeup_end - s3_wakeup_16) can fit into one page.
- */
-static __data uint8_t g_saved_s3_wakeup_page[PAGE_SIZE];
 
 unsigned long get_tboot_mem_end(void)
 {

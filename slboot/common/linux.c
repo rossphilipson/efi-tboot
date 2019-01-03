@@ -48,13 +48,9 @@
 #include <cmdline.h>
 #include <misc.h>
 #include <hash.h>
-#include <integrity.h>
 #include <processor.h>
 
 extern loader_ctx *g_ldr_ctx;
-
-/* MLE/kernel shared data page (in boot.S) */
-extern tboot_shared_t _tboot_shared;
 
 static boot_params_t *boot_params;
 
@@ -437,10 +433,7 @@ bool expand_linux_image(const void *linux_image, size_t linux_size,
         screen->orig_y = 24;               /* start display text @ screen end*/
     }
 
-    /* set address of tboot shared page */
-    if ( is_measured_launch )
-        *(uint64_t *)&boot_params->tboot_shared_addr =
-            (uintptr_t)&_tboot_shared;
+    /* TODO this is where TB boot param info will go */
 
     *entry_point = (void *)hdr->code32_start;
     return true;
