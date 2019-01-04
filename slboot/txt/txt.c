@@ -521,7 +521,7 @@ static txt_heap_t *init_txt_heap(void *ptab_base, acm_hdr_t *sinit, loader_ctx *
     /*
      * BIOS data already setup by BIOS
      */
-    if ( !verify_txt_heap(txt_heap, true) )
+    if ( !verify_bios_data(txt_heap) )
         return NULL;
 
     /*

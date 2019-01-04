@@ -72,8 +72,6 @@
 extern void apply_policy(tb_error_t error);
 extern void verify_IA32_se_svn_status(const acm_hdr_t *acm_hdr);
 extern __data tpm_contextsave_out tpm2_context_saved;
-/* counter timeout for waiting for all APs to exit guests */
-#define AP_GUEST_EXIT_TIMEOUT     0x01000000
 
 /* loader context struct saved so that post_launch() can use it */
 __data loader_ctx g_loader_ctx = { NULL, 0 };
