@@ -3,6 +3,10 @@
 
 # -*- mode: Makefile; -*-
 
+# tboot needs too many customized compiler settings to use system CFLAGS,
+# so if environment wants to set any compiler flags, it must use TBOOT_CFLAGS
+CFLAGS		:= $(TBOOT_CFLAGS)
+
 # debug build
 debug ?= n
 
@@ -45,10 +49,6 @@ endif
 RELEASEVER  := "1.9.9"
 RELEASETIME := "2018-11-30 15:00 +0800"
 #ROOTDIR ?= $(CURDIR)
-
-# tboot needs too many customized compiler settings to use system CFLAGS,
-# so if environment wants to set any compiler flags, it must use TBOOT_CFLAGS
-CFLAGS		:= $(TBOOT_CFLAGS)
 
 #include $(ROOTDIR)/Config.mk
 

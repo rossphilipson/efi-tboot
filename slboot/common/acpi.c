@@ -53,8 +53,6 @@
 #endif
 
 static struct acpi_rsdp *rsdp;
-static struct acpi_table_header *g_dmar_table;
-static __data bool g_hide_dmar;
 
 static inline struct acpi_rsdt *get_rsdt(void)
 {
@@ -194,11 +192,6 @@ static struct acpi_table_header *find_table(const char *table_name)
 
     printk(TBOOT_ERR"can't find %s table.\n", table_name);
     return NULL;
-}
-
-static struct acpi_dmar *get_vtd_dmar_table(void)
-{
-    return (struct acpi_dmar *)find_table(DMAR_SIG);
 }
 
 bool vtd_bios_enabled(void)

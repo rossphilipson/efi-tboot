@@ -62,31 +62,6 @@
 /* saved MTRR state or NULL if orig. MTRRs have not been changed */
 static __data mtrr_state_t *g_saved_mtrrs = NULL;
 
-static uint64_t get_maxphyaddr_mask(void)
-{
-    static bool printed_msg = false;
-    union {
-        uint32_t raw;
-        struct {
-	    uint32_t num_pa_bits  : 8;
-	    uint32_t num_la_bits  : 8;
-	    uint32_t reserved     : 16;
-	};
-    } num_addr_bits;
-
-    /* does CPU support 0x80000008 CPUID leaf? (all TXT CPUs should) */
-    uint32_t max_ext_fn = cpuid_eax(0x80000000);
-    if ( max_ext_fn < 0x80000008 )
-        return 0xffffff;      /* if not, default is 36b support */
-
-    num_addr_bits.raw = cpuid_eax(0x80000008);
-    if ( !printed_msg ) {
-        printk(TBOOT_DETA"CPU supports %u phys address bits\n", num_addr_bits.num_pa_bits);
-	printed_msg = true;
-    }
-    return ((1ULL << num_addr_bits.num_pa_bits) - 1) >> PAGE_SHIFT;
-}
-
 /*
  * this must be done for each processor so that all have the same
  * memory types
@@ -179,6 +154,7 @@ void save_mtrrs(mtrr_state_t *saved_state)
     g_saved_mtrrs = saved_state;
 }
 
+/* TODO print them?
 static void print_mtrrs(const mtrr_state_t *saved_state)
 {
     printk(TBOOT_DETA"mtrr_def_type: e = %d, fe = %d, type = %x\n",
@@ -193,70 +169,7 @@ static void print_mtrrs(const mtrr_state_t *saved_state)
                saved_state->mtrr_physbases[i].type,
                saved_state->mtrr_physmasks[i].v );
     }
-}
-
-/* base should be 4k-bytes aligned, no invalid overlap combination */
-static int get_page_type(const mtrr_state_t *saved_state, uint32_t base)
-{
-    int type = -1;
-    bool wt = false;
-    uint64_t maxphyaddr_mask = get_maxphyaddr_mask();
-
-    /* omit whether the fix mtrrs are enabled, just check var mtrrs */
-
-    base >>= PAGE_SHIFT;
-    for ( unsigned int i = 0; i < saved_state->num_var_mtrrs; i++ ) {
-        const mtrr_physbase_t *base_i = &saved_state->mtrr_physbases[i];
-        const mtrr_physmask_t *mask_i = &saved_state->mtrr_physmasks[i];
-
-        if ( mask_i->v == 0 )
-            continue;
-        if ( (base & mask_i->mask & maxphyaddr_mask) !=
-             (base_i->base & mask_i->mask & maxphyaddr_mask) )
-            continue;
-
-        type = base_i->type;
-        if ( type == MTRR_TYPE_UNCACHABLE )
-            return MTRR_TYPE_UNCACHABLE;
-        if ( type == MTRR_TYPE_WRTHROUGH )
-            wt = true;
-    }
-    if ( wt )
-        return MTRR_TYPE_WRTHROUGH;
-    if ( type != -1 )
-        return type;
-
-    return saved_state->mtrr_def_type.type;
-}
-
-static int get_region_type(const mtrr_state_t *saved_state,
-                           uint32_t base, uint32_t pages)
-{
-    int type;
-    uint32_t end;
-
-    if ( pages == 0 )
-        return MTRR_TYPE_MIXED;
-
-    /* wrap the 4G address space */
-    if ( ((uint32_t)(~0) - base) < (pages << PAGE_SHIFT) )
-        return MTRR_TYPE_MIXED;
-
-    if ( saved_state->mtrr_def_type.e == 0 )
-        return MTRR_TYPE_UNCACHABLE;
-
-    /* align to 4k page boundary */
-    base &= PAGE_MASK;
-    end = base + (pages << PAGE_SHIFT);
-
-    type = get_page_type(saved_state, base);
-    base += PAGE_SIZE;
-    for ( ; base < end; base += PAGE_SIZE )
-        if ( type != get_page_type(saved_state, base) )
-            return MTRR_TYPE_MIXED;
-
-    return type;
-}
+}*/
 
 void restore_mtrrs(const mtrr_state_t *saved_state)
 {
@@ -328,7 +241,7 @@ bool set_mem_type(const void *base, uint32_t size, uint32_t mem_type)
     */
     unsigned long base_v;
     base_v = (unsigned long) base;
-    int i =0;   
+    int i =0;
     // mtrr size in pages
     int mtrr_s = 1;
     while ((base_v & 0x01) == 0) {
@@ -337,10 +250,10 @@ bool set_mem_type(const void *base, uint32_t size, uint32_t mem_type)
 
     }
     for (int j=i-12; j>0; j--) mtrr_s =mtrr_s*2; //mtrr_s = mtrr_s << 1
-    printk(TBOOT_DETA"The maximum allowed MTRR range size=%d Pages \n", mtrr_s);
-	
+        printk(TBOOT_DETA"The maximum allowed MTRR range size=%d Pages \n", mtrr_s);
+
     while (num_pages >= mtrr_s){
-	
+
 	/* set the base of the current MTRR */
         mtrr_physbase.raw = rdmsr(MTRR_PHYS_BASE0_MSR + ndx*2);
         mtrr_physbase.base = ((unsigned long)base >> PAGE_SHIFT) &
@@ -352,7 +265,7 @@ bool set_mem_type(const void *base, uint32_t size, uint32_t mem_type)
         mtrr_physmask.mask = ~(mtrr_s - 1) & SINIT_MTRR_MASK;
         mtrr_physmask.v = 1;
         wrmsr(MTRR_PHYS_MASK0_MSR + ndx*2, mtrr_physmask.raw);
-		
+
         base += (mtrr_s * PAGE_SIZE);
         num_pages -= mtrr_s;
         ndx++;
