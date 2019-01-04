@@ -110,6 +110,8 @@ typedef struct {
 #define TBOOT_LOG_UUID   {0xc0192526, 0x6b30, 0x4db4, 0x844c, \
                              {0xa3, 0xe9, 0x53, 0xb8, 0x81, 0x74 }}
 
+void shutdown_system(uint32_t shutdown_type);
+
 #endif    /* __TBOOT_H__ */
 
 /*

@@ -88,7 +88,7 @@ static const tb_policy_map_t g_policy_map[] = {
     { TB_POLTYPE_CONT_NON_FATAL,               TB_POLACT_CONTINUE,
       {
           {TB_ERR_FATAL,                       TB_POLACT_HALT},
-          {TB_ERR_PREV_TXT_ERROR,              TB_POLACT_UNMEASURED_LAUNCH}, 
+          {TB_ERR_PREV_TXT_ERROR,              TB_POLACT_UNMEASURED_LAUNCH},
           {TB_ERR_TPM_NOT_READY,               TB_POLACT_UNMEASURED_LAUNCH},
           {TB_ERR_SMX_NOT_SUPPORTED,           TB_POLACT_UNMEASURED_LAUNCH},
           {TB_ERR_VMX_NOT_SUPPORTED,           TB_POLACT_UNMEASURED_LAUNCH},
@@ -228,12 +228,7 @@ void apply_policy(tb_error_t error)
             return;
         case TB_POLACT_UNMEASURED_LAUNCH:
             /* restore mtrr state saved before */
-            restore_mtrrs(NULL);
-/*
-            if ( s3_flag )
-                s3_launch();
-            else
-                launch_kernel();*/
+            launch_kernel();
             break; /* if launch xen fails, do halt at the end */
         case TB_POLACT_HALT:
             break; /* do halt at the end */
@@ -242,9 +237,8 @@ void apply_policy(tb_error_t error)
             /* do halt at the end */
     }
 
-    /*_tboot_shared.shutdown_type = TB_SHUTDOWN_HALT;*/
-    /* TODO deal with apply policy and cases whee we should shutdown */
-    /*shutdown();*/
+    /* Deal with apply policy and cases whee we should shutdown */
+    shutdown_system(TB_SHUTDOWN_HALT);
 }
 
 /*

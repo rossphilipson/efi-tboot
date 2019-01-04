@@ -531,9 +531,6 @@ static txt_heap_t *init_txt_heap(void *ptab_base, acm_hdr_t *sinit, loader_ctx *
     size = (uint64_t *)((uint32_t)os_mle_data - sizeof(uint64_t));
     *size = sizeof(*os_mle_data) + sizeof(uint64_t);
     tb_memset(os_mle_data, 0, sizeof(*os_mle_data));
-    os_mle_data->version = 3;
-    os_mle_data->lctx_addr = lctx->addr;
-    os_mle_data->saved_misc_enable_msr = rdmsr(MSR_IA32_MISC_ENABLE);
 
     /*
      * OS/loader to SINIT data
@@ -699,9 +696,9 @@ tb_error_t txt_launch_environment(loader_ctx *lctx)
     if ( txt_heap == NULL )
         return TB_ERR_TXT_NOT_SUPPORTED;
 
-    /* save MTRRs before we alter them for SINIT launch */
+    /* TODO set the zero page addr here or possibly later in the launch */
     os_mle_data = get_os_mle_data_start(txt_heap);
-    save_mtrrs(&(os_mle_data->saved_mtrr_state));
+    os_mle_data->zero_page_addr = 0;
 
     /* set MTRRs properly for AC module (SINIT) */
     if ( !set_mtrrs_for_acmod(g_sinit) )
@@ -755,10 +752,6 @@ tb_error_t txt_launch_racm(loader_ctx *lctx)
     /* do some checks on it */
     if ( !verify_racm(racm) )
         return TB_ERR_ACMOD_VERIFY_FAILED;
-
-    /* save MTRRs before we alter them for RACM launch */
-    /*  - not needed by far since always reboot after RACM launch */
-    //save_mtrrs(...);
 
     /* set MTRRs properly for AC module (RACM) */
     if ( !set_mtrrs_for_acmod(racm) )

@@ -264,14 +264,8 @@ typedef struct __packed {
 #define MAX_EVENT_LOG_SIZE       5*4*1024   /* 4k*5 */
 
 typedef struct __packed {
-    uint32_t          version;           /* currently 3 */
-    mtrr_state_t      saved_mtrr_state;  /* saved prior to changes for SINIT */
-    void 			 *lctx_addr;         /* needs to be restored to ebx */
-    uint32_t          saved_misc_enable_msr;  /* saved prior to SENTER */
-                                         /* PO policy data */
-    uint8_t           lcp_po_data[MAX_LCP_PO_DATA_SIZE];
-                                         /* buffer for tpm event log */
-    uint8_t           event_log_buffer[MAX_EVENT_LOG_SIZE];
+    uint32_t zero_page_addr;
+    uint8_t  event_log_buffer[MAX_EVENT_LOG_SIZE];
 } os_mle_data_t;
 
 #define MIN_OS_SINIT_DATA_VER    4

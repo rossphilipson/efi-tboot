@@ -59,9 +59,6 @@
 #define NR_MMIO_PCICFG_PAGES    1
 #define SINIT_MTRR_MASK         0xFFFFFF  /* SINIT requires 36b mask */
 
-/* saved MTRR state or NULL if orig. MTRRs have not been changed */
-static __data mtrr_state_t *g_saved_mtrrs = NULL;
-
 /*
  * this must be done for each processor so that all have the same
  * memory types
@@ -122,77 +119,6 @@ bool set_mtrrs_for_acmod(const acm_hdr_t *hdr)
     write_eflags(eflags);
 
     return true;
-}
-
-void save_mtrrs(mtrr_state_t *saved_state)
-{
-    mtrr_cap_t mtrr_cap;
-
-    /* IA32_MTRR_DEF_TYPE MSR */
-    saved_state->mtrr_def_type.raw = rdmsr(MSR_MTRRdefType);
-
-    /* number variable MTTRRs */
-    mtrr_cap.raw = rdmsr(MSR_MTRRcap);
-    if ( mtrr_cap.vcnt > MAX_VARIABLE_MTRRS ) {
-        /* print warning but continue saving what we can */
-        /* (set_mem_type() won't exceed the array, so we're safe doing this) */
-        printk(TBOOT_WARN"actual # var MTRRs (%d) > MAX_VARIABLE_MTRRS (%d)\n",
-               mtrr_cap.vcnt, MAX_VARIABLE_MTRRS);
-        saved_state->num_var_mtrrs = MAX_VARIABLE_MTRRS;
-    }
-    else
-        saved_state->num_var_mtrrs = mtrr_cap.vcnt;
-
-    /* physmask's and physbase's */
-    for ( unsigned int ndx = 0; ndx < saved_state->num_var_mtrrs; ndx++ ) {
-        saved_state->mtrr_physmasks[ndx].raw =
-            rdmsr(MTRR_PHYS_MASK0_MSR + ndx*2);
-        saved_state->mtrr_physbases[ndx].raw =
-            rdmsr(MTRR_PHYS_BASE0_MSR + ndx*2);
-    }
-
-    g_saved_mtrrs = saved_state;
-}
-
-/* TODO print them?
-static void print_mtrrs(const mtrr_state_t *saved_state)
-{
-    printk(TBOOT_DETA"mtrr_def_type: e = %d, fe = %d, type = %x\n",
-           saved_state->mtrr_def_type.e, saved_state->mtrr_def_type.fe,
-           saved_state->mtrr_def_type.type );
-    printk(TBOOT_DETA"mtrrs:\n");
-    printk(TBOOT_DETA"\t\t    base          mask      type  v\n");
-    for ( unsigned int i = 0; i < saved_state->num_var_mtrrs; i++ ) {
-        printk(TBOOT_DETA"\t\t%13.13Lx %13.13Lx  %2.2x  %d\n",
-               (uint64_t)saved_state->mtrr_physbases[i].base,
-               (uint64_t)saved_state->mtrr_physmasks[i].mask,
-               saved_state->mtrr_physbases[i].type,
-               saved_state->mtrr_physmasks[i].v );
-    }
-}*/
-
-void restore_mtrrs(const mtrr_state_t *saved_state)
-{
-    /* called by apply_policy() so use saved ptr */
-    if ( saved_state == NULL )
-        saved_state = g_saved_mtrrs;
-    /* haven't saved them yet, so return */
-    if ( saved_state == NULL )
-        return;
-
-    /* disable all MTRRs first */
-    set_all_mtrrs(false);
-
-    /* physmask's and physbase's */
-    for ( unsigned int ndx = 0; ndx < saved_state->num_var_mtrrs; ndx++ ) {
-        wrmsr(MTRR_PHYS_MASK0_MSR + ndx*2,
-              saved_state->mtrr_physmasks[ndx].raw);
-        wrmsr(MTRR_PHYS_BASE0_MSR + ndx*2,
-              saved_state->mtrr_physbases[ndx].raw);
-    }
-
-    /* IA32_MTRR_DEF_TYPE MSR */
-    wrmsr(MSR_MTRRdefType, saved_state->mtrr_def_type.raw);
 }
 
 /*

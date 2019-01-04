@@ -80,8 +80,6 @@ __data loader_ctx g_loader_ctx = { NULL, 0 };
 __data loader_ctx *g_ldr_ctx = &g_loader_ctx;
 __data uint32_t g_mb_orig_size = 0;
 
-static void shutdown_system(uint32_t);
-
 unsigned long get_tboot_mem_end(void)
 {
     return PAGE_UP((unsigned long)&_end);
@@ -264,7 +262,7 @@ void begin_launch(void *addr, uint32_t magic)
     apply_policy(err);
 }
 
-static void shutdown_system(uint32_t shutdown_type)
+void shutdown_system(uint32_t shutdown_type)
 {
     static const char *types[] = { "TB_SHUTDOWN_REBOOT", "TB_SHUTDOWN_HALT" };
     char type[32];
