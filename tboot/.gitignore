@@ -1,0 +1,4 @@
+# TBOOT EFI files
+*.efi
+*.dsm
+*.lds
