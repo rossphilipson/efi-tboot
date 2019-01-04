@@ -9,7 +9,7 @@
 
 include $(CURDIR)/Config.mk
 
-TARGET := $(CURDIR)/tboot
+TARGET := $(CURDIR)/slboot
 
 # boot.o must be first
 obj-y := common/boot.o
