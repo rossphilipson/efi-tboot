@@ -3,12 +3,19 @@
 
 # -*- mode: Makefile; -*-
 
-#
-# tboot-specific build settings
-#
-RELEASEVER  := "1.9.9"
-RELEASETIME := "2018-11-30 15:00 +0800"
-#ROOTDIR ?= $(CURDIR)
+# debug build
+debug ?= n
+
+# cc-option: Check if compiler supports first option, else fall back to second.
+# Usage: cflags-y += $(call cc-option,$(CC),-march=winchip-c6,-march=i586)
+cc-option = $(shell if test -z "`$(1) $(2) -S -o /dev/null -xc \
+              /dev/null 2>&1`"; then echo "$(2)"; else echo "$(3)"; fi ;)
+
+CFLAGS_WARN       = -Wall -Wformat-security -Werror -Wstrict-prototypes \
+	            -Wextra -Winit-self -Wswitch-default -Wunused-parameter \
+	            -Wwrite-strings \
+	            $(call cc-option,$(CC),-Wlogical-op,) \
+	            -Wno-missing-field-initializers
 
 AS         = as
 LD         = ld
@@ -20,6 +27,24 @@ NM         = nm
 STRIP      = strip
 OBJCOPY    = objcopy
 OBJDUMP    = objdump
+
+CFLAGS += $(CFLAGS_WARN) -fno-strict-aliasing -std=gnu99
+# due to bug in gcc v4.2,3,?
+CFLAGS += $(call cc-option,$(CC),-Wno-array-bounds,)
+
+
+ifeq ($(debug),y)
+CFLAGS += -g -DDEBUG
+else
+CFLAGS += -O2 -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2
+endif
+
+#
+# tboot-specific build settings
+#
+RELEASEVER  := "1.9.9"
+RELEASETIME := "2018-11-30 15:00 +0800"
+#ROOTDIR ?= $(CURDIR)
 
 # tboot needs too many customized compiler settings to use system CFLAGS,
 # so if environment wants to set any compiler flags, it must use TBOOT_CFLAGS

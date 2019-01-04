@@ -104,11 +104,11 @@ static void comc_pci_setup(void)
 
         mtx_init(&pcicfg_mtx);
     }
-}               
+}
 
 void comc_init(void)
 {
-    comc_pci_setup(); 
+    comc_pci_setup();
     comc_setup(g_com_port.comc_curspeed);
 }
 

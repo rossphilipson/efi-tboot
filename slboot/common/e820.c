@@ -61,7 +61,7 @@ static unsigned int g_nr_map;
 static memory_map_t *g_copy_e820_map = (memory_map_t *)TBOOT_E820_COPY_ADDR;
 
 static inline void split64b(uint64_t val, uint32_t *val_lo, uint32_t *val_hi)  {
-     *val_lo = (uint32_t)(val & 0xffffffff); 
+     *val_lo = (uint32_t)(val & 0xffffffff);
      *val_hi = (uint32_t)(val >> 32);
  }
 
@@ -584,7 +584,7 @@ bool get_ram_ranges(uint64_t *min_lo_ram, uint64_t *max_lo_ram,
     bool found_reserved_region = false;
     uint64_t last_min_ram_base = 0, last_min_ram_size = 0;
 
-    /* 
+    /*
      * if g_min_ram > 0, we will never mark a region > g_min_ram in size
      * as reserved even if it is after a reserved region (effectively
      * we ignore reserved regions below the last type 1 region

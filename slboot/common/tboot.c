@@ -82,7 +82,6 @@ __data uint32_t g_mb_orig_size = 0;
 
 static void shutdown_system(uint32_t);
 
-
 unsigned long get_tboot_mem_end(void)
 {
     return PAGE_UP((unsigned long)&_end);
@@ -209,13 +208,13 @@ void begin_launch(void *addr, uint32_t magic)
     if (g_sinit == NULL) {
        find_platform_sinit_module(g_ldr_ctx, (void **)&g_sinit, NULL);
        /* check if it is newer than BIOS provided version, then copy it to BIOS reserved region */
-       g_sinit = copy_sinit(g_sinit); 
-       if (g_sinit == NULL) 
+       g_sinit = copy_sinit(g_sinit);
+       if (g_sinit == NULL)
            apply_policy(TB_ERR_SINIT_NOT_PRESENT);
-       if (!verify_acmod(g_sinit)) 
+       if (!verify_acmod(g_sinit))
            apply_policy(TB_ERR_ACMOD_VERIFY_FAILED);
     }
-    
+
     /* make TPM ready for measured launch */
     if (!tpm_detect())
        apply_policy(TB_ERR_TPM_NOT_READY);

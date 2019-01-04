@@ -203,67 +203,7 @@ static struct acpi_dmar *get_vtd_dmar_table(void)
 
 bool vtd_bios_enabled(void)
 {
-    return find_table(DMAR_SIG) != NULL; 
-}
-
-bool save_vtd_dmar_table(void)
-{
-    /* find DMAR table and save it */
-    g_dmar_table = (struct acpi_table_header *)get_vtd_dmar_table();
-
-    printk(TBOOT_DETA"DMAR table @ %p saved.\n", g_dmar_table);
-    return true;
-}
-
-bool restore_vtd_dmar_table(void)
-{
-    struct acpi_table_header *hdr;
-
-    g_hide_dmar = false;
-
-    /* find DMAR table first */
-    hdr = (struct acpi_table_header *)get_vtd_dmar_table();
-    if ( hdr != NULL ) {
-        printk(TBOOT_DETA"DMAR table @ %p is still there, skip restore step.\n", hdr);
-        return true;
-    }
-
-    /* check saved DMAR table */
-    if ( g_dmar_table == NULL ) {
-        printk(TBOOT_ERR"No DMAR table saved, abort restore step.\n");
-        return false;
-    }
-
-    /* restore DMAR if needed */
-    tb_memcpy(g_dmar_table->signature, DMAR_SIG, sizeof(g_dmar_table->signature));
-
-    /* need to hide DMAR table while resume from S3 */
-    g_hide_dmar = true;
-    printk(TBOOT_DETA"DMAR table @ %p restored.\n", hdr);
-    return true;
-}
-
-bool remove_vtd_dmar_table(void)
-{
-    struct acpi_table_header *hdr;
-
-    /* check whether it is needed */
-    if ( !g_hide_dmar ) {
-        printk(TBOOT_DETA"No need to hide DMAR table.\n");
-        return true;
-    }
-
-    /* find DMAR table */
-    hdr = (struct acpi_table_header *)get_vtd_dmar_table();
-    if ( hdr == NULL ) {
-        printk(TBOOT_DETA"No DMAR table, skip remove step.\n");
-        return true;
-    }
-
-    /* remove DMAR table */
-    hdr->signature[0] = '\0';
-    printk(TBOOT_DETA"DMAR table @ %p removed.\n", hdr);
-    return true;
+    return find_table(DMAR_SIG) != NULL;
 }
 
 static struct acpi_madt *get_apic_table(void)

@@ -278,7 +278,7 @@ void get_tboot_log_targets(void)
             g_log_targets |= TBOOT_LOG_TARGET_VGA;
             targets += 3;
         }
-        else 
+        else
             break; /* unrecognized, end loop */
 
         if ( *targets == ',' )
@@ -544,7 +544,7 @@ bool get_tboot_force_tpm2_legacy_log(void)
 
 bool get_tboot_ignore_prev_err(void)
 {
-    const char *ignore_prev_err = 
+    const char *ignore_prev_err =
 	    get_option_val(g_tboot_cmdline_options,
 			   g_tboot_param_values,
 			   "ignore_prev_err");

@@ -40,30 +40,11 @@
 #include <processor.h>
 
 #define BSP_STACK_SIZE		0x2000
-#define AP_STACK_SIZE		0x0800
 
 #define cs_sel      1<<3
 #define ds_sel      2<<3
 #define cs16_sel    4<<3
 #define ds16_sel    5<<3
-
-/* opcode prefixes for 16bit data and addressing */
-#define DATA16      .byte 0x66
-#define ADDR16      .byte 0x67
-
-/* TXT config regs addrs/offsets */
-#define TXT_PRIV_CONFIG_REGS_BASE      0xfed20000
-#define TXTCR_STS                      0x0000
-#define TXTCR_ERRORCODE                0x0030
-#define TXTCR_CMD_RESET                0x0038
-#define TXTCR_CMD_UNLOCK_MEM_CONFIG    0x0218
-#define TXTCR_HEAP_BASE                0x0300
-
-/* OsSinitData field offsets */
-#define MLE_PGTBL_OFF          8
-
-/* errorcode for post-launch memory layout verfication failure */
-#define LAYOUT_ERR             0xc0008001
 
 .section ".tboot_multiboot_header","w"
         .align 4

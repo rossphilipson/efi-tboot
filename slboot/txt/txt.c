@@ -89,6 +89,7 @@ extern uint32_t print_event_2_1(void *evt);
  * this is the structure whose addr we'll put in TXT heap
  * it needs to be within the MLE pages, so force it to the .text section
  */
+/* TODO the MLE header will be elsewhere */
 static __text const mle_hdr_t g_mle_hdr = {
     uuid              :  MLE_HDR_UUID,
     length            :  sizeof(mle_hdr_t),
@@ -116,21 +117,6 @@ static void print_file_info(void)
     printk(TBOOT_DETA"\t &_end=%p\n", &_end);
     printk(TBOOT_DETA"\t &_mle_start=%p\n", &_mle_start);
     printk(TBOOT_DETA"\t &_mle_end=%p\n", &_mle_end);
-    printk(TBOOT_DETA"\t &g_mle_hdr=%p\n", &g_mle_hdr);
-}
-
-static void print_mle_hdr(const mle_hdr_t *mle_hdr)
-{
-    printk(TBOOT_DETA"MLE header:\n");
-    printk(TBOOT_DETA"\t uuid="); print_uuid(&mle_hdr->uuid); 
-    printk(TBOOT_DETA"\n");
-    printk(TBOOT_DETA"\t length=%x\n", mle_hdr->length);
-    printk(TBOOT_DETA"\t version=%08x\n", mle_hdr->version);
-    printk(TBOOT_DETA"\t entry_point=%08x\n", mle_hdr->entry_point);
-    printk(TBOOT_DETA"\t first_valid_page=%08x\n", mle_hdr->first_valid_page);
-    printk(TBOOT_DETA"\t mle_start_off=%x\n", mle_hdr->mle_start_off);
-    printk(TBOOT_DETA"\t mle_end_off=%x\n", mle_hdr->mle_end_off);
-    print_txt_caps("\t ", mle_hdr->capabilities);
 }
 
 /*
@@ -145,7 +131,7 @@ static void print_mle_hdr(const mle_hdr_t *mle_hdr)
 /* 1 ptable = 3 pages and just 1 loop loop for ptable MLE page table */
 /* can only contain 4k pages */
 
-static __mlept uint8_t g_mle_pt[3 * PAGE_SIZE];  
+static __mlept uint8_t g_mle_pt[3 * PAGE_SIZE];
 /* pgdir ptr + pgdir + ptab = 3 */
 
 static void *build_mle_pagetable(uint32_t mle_start, uint32_t mle_size)
@@ -155,7 +141,7 @@ static void *build_mle_pagetable(uint32_t mle_start, uint32_t mle_size)
     void *pg_dir_ptr_tab, *pg_dir, *pg_tab;
     uint64_t *pte;
 
-    printk(TBOOT_DETA"MLE start=0x%x, end=0x%x, size=0x%x\n", 
+    printk(TBOOT_DETA"MLE start=0x%x, end=0x%x, size=0x%x\n",
            mle_start, mle_start+mle_size, mle_size);
     if ( mle_size > 512*PAGE_SIZE ) {
         printk(TBOOT_ERR"MLE size too big for single page table\n");
@@ -225,7 +211,7 @@ static void *init_event_log(void)
 static void init_evtlog_desc_1(heap_event_log_ptr_elt2_1_t *evt_log)
 {
     os_mle_data_t *os_mle_data = get_os_mle_data_start(get_txt_heap());
-   
+
     evt_log->phys_addr = (uint64_t)(unsigned long)(os_mle_data->event_log_buffer);
     evt_log->allcoated_event_container_size = 2*PAGE_SIZE;
     evt_log->first_record_offset = 0;
@@ -308,7 +294,7 @@ static void init_os_sinit_ext_data(heap_ext_data_element_t* elts)
     heap_ext_data_element_t* elt = elts;
     heap_event_log_ptr_elt_t* evt_log;
     struct tpm_if *tpm = get_tpm();
- 
+
     int log_type = get_evtlog_type();
     if ( log_type == EVTLOG_TPM12 ) {
         evt_log = (heap_event_log_ptr_elt_t *)elt->data;
@@ -350,7 +336,7 @@ bool evtlog_append_tpm12(uint8_t pcr, tb_hash_t *hash, uint32_t type)
 
     tpm12_pcr_event_t *next = (tpm12_pcr_event_t *)
                               ((void*)g_elog + g_elog->next_event_offset);
-    
+
     if ( g_elog->next_event_offset + sizeof(*next) > g_elog->size )
         return false;
 
@@ -378,8 +364,8 @@ void dump_event_2(void)
                 log_descr->pcr_events_offset,
                 log_descr->next_event_offset);
 
-        uint32_t hash_size, data_size; 
-        hash_size = get_hash_size(log_descr->alg); 
+        uint32_t hash_size, data_size;
+        hash_size = get_hash_size(log_descr->alg);
         if ( hash_size == 0 )
             return;
 
@@ -405,7 +391,7 @@ void dump_event_2(void)
 bool evtlog_append_tpm2_legacy(uint8_t pcr, uint16_t alg, tb_hash_t *hash, uint32_t type)
 {
     heap_event_log_descr_t *cur_desc = NULL;
-    uint32_t hash_size; 
+    uint32_t hash_size;
     void *cur, *next;
 
     for ( unsigned int i=0; i<g_elog_2->count; i++ ) {
@@ -417,7 +403,7 @@ bool evtlog_append_tpm2_legacy(uint8_t pcr, uint16_t alg, tb_hash_t *hash, uint3
     if ( !cur_desc )
         return false;
 
-    hash_size = get_hash_size(alg); 
+    hash_size = get_hash_size(alg);
     if ( hash_size == 0 )
         return false;
 
@@ -433,7 +419,7 @@ bool evtlog_append_tpm2_legacy(uint8_t pcr, uint16_t alg, tb_hash_t *hash, uint3
     tb_memcpy((uint8_t *)next, hash, hash_size);
     next += hash_size;
     *((u32 *)next) = 0;
-    cur_desc->next_event_offset += 3*sizeof(uint32_t) + hash_size; 
+    cur_desc->next_event_offset += 3*sizeof(uint32_t) + hash_size;
 
     print_event_2(cur, alg);
     return true;
@@ -576,7 +562,7 @@ static txt_heap_t *init_txt_heap(void *ptab_base, acm_hdr_t *sinit, loader_ctx *
         (uint64_t)(unsigned long)&_mle_start;
     /* VT-d PMRs */
     uint64_t min_lo_ram, max_lo_ram, min_hi_ram, max_hi_ram;
-    
+
     if ( !get_ram_ranges(&min_lo_ram, &max_lo_ram, &min_hi_ram, &max_hi_ram) )
         return NULL;
 
@@ -601,7 +587,7 @@ static txt_heap_t *init_txt_heap(void *ptab_base, acm_hdr_t *sinit, loader_ctx *
         return NULL;
     }
     if ( get_evtlog_type() == EVTLOG_TPM2_TCG ) {
-        printk(TBOOT_INFO"SINIT ACM supports TCG compliant TPM 2.0 event log format, tcg_event_log_format = %d \n", 
+        printk(TBOOT_INFO"SINIT ACM supports TCG compliant TPM 2.0 event log format, tcg_event_log_format = %d \n",
               sinit_caps.tcg_event_log_format);
         os_sinit_data->capabilities.tcg_event_log_format = 1;
     }
@@ -629,7 +615,7 @@ static txt_heap_t *init_txt_heap(void *ptab_base, acm_hdr_t *sinit, loader_ctx *
             return NULL;
         }
     }
-        
+
     /* capabilities : choose DA/LG */
     os_sinit_data->capabilities.pcr_map_no_legacy = 1;
     if ( sinit_caps.pcr_map_da && get_tboot_prefer_da() )
@@ -642,7 +628,7 @@ static txt_heap_t *init_txt_heap(void *ptab_base, acm_hdr_t *sinit, loader_ctx *
         os_sinit_data->capabilities.pcr_map_da = 1;
     }
     else {
-        printk(TBOOT_ERR"SINIT capabilities are incompatible (0x%x)\n", 
+        printk(TBOOT_ERR"SINIT capabilities are incompatible (0x%x)\n",
                sinit_caps._raw);
         return NULL;
     }
@@ -655,7 +641,7 @@ static txt_heap_t *init_txt_heap(void *ptab_base, acm_hdr_t *sinit, loader_ctx *
         os_sinit_data->capabilities.pcr_map_no_legacy = 0;
         os_sinit_data->capabilities.pcr_map_da = 0;
         g_using_da = 1;
-    }   
+    }
 
     /* Event log initialization */
     if ( os_sinit_data->version >= 6 )
@@ -700,7 +686,6 @@ tb_error_t txt_launch_environment(loader_ctx *lctx)
 
     /* print some debug info */
     print_file_info();
-    print_mle_hdr(&g_mle_hdr);
 
     /* create MLE page table */
     mle_ptab_base = build_mle_pagetable(
@@ -734,7 +719,7 @@ tb_error_t txt_launch_environment(loader_ctx *lctx)
    /*{
    tpm_reg_loc_ctrl_t    reg_loc_ctrl;
    tpm_reg_loc_state_t  reg_loc_state;
-   
+
    reg_loc_ctrl._raw[0] = 0;
    reg_loc_ctrl.relinquish = 1;
    write_tpm_reg(0, TPM_REG_LOC_CTRL, &reg_loc_ctrl);
@@ -743,7 +728,7 @@ tb_error_t txt_launch_environment(loader_ctx *lctx)
    printk(TBOOT_INFO"CRB reg_loc_state.active_locality is 0x%x \n", reg_loc_state.active_locality);
    printk(TBOOT_INFO"CRB reg_loc_state.loc_assigned is 0x%x \n", reg_loc_state.loc_assigned);
    }*/
-   
+
    printk(TBOOT_INFO"executing GETSEC[SENTER]...\n");
     /* (optionally) pause before executing GETSEC[SENTER] */
     if ( g_vga_delay > 0 )
@@ -793,7 +778,7 @@ tb_error_t txt_launch_racm(loader_ctx *lctx)
     //outb(0xcf9, 0x0a);
     //outb(0xcf9, 0x0e);
     outb(0xcf9, 0x06);
-    
+
     printk(TBOOT_ERR"ERROR--we should not get here!\n");
     return TB_ERR_FATAL;
 }
@@ -967,7 +952,7 @@ bool get_parameters(getsec_parameters_t *params)
             params->preserve_mce = (eax & 0x00000040) ? true : false;
         }
         else {
-            printk(TBOOT_WARN"unknown GETSEC[PARAMETERS] type: %d\n", 
+            printk(TBOOT_WARN"unknown GETSEC[PARAMETERS] type: %d\n",
                    param_type);
             param_type = 0;    /* set so that we break out of the loop */
         }
@@ -981,7 +966,6 @@ bool get_parameters(getsec_parameters_t *params)
 
     return true;
 }
-
 
 /*
  * Local variables:
