@@ -4,7 +4,7 @@
 # -*- mode: Makefile; -*-
 
 #
-# tboot makefile
+# slboot makefile
 #
 
 include $(CURDIR)/Config.mk
@@ -19,7 +19,7 @@ obj-y += common/linux.o common/loader.o common/memcmp.o common/memcpy.o
 obj-y += common/misc.o common/mutex.o common/pci_cfgreg.o
 obj-y += common/policy.o common/printk.o common/rijndael.o common/sha1.o
 obj-y += common/strcmp.o common/strlen.o common/strncmp.o common/strncpy.o
-obj-y += common/strtoul.o common/tb_error.o common/tboot.o common/tpm.o
+obj-y += common/strtoul.o common/tb_error.o common/slboot.o common/tpm.o
 obj-y += common/vga.o common/vmac.o common/vsprintf.o
 obj-y += txt/acmod.o txt/errors.o txt/heap.o txt/mtrrs.o txt/txt.o
 obj-y += txt/verify.o
@@ -29,7 +29,7 @@ obj-y += common/sha256.o
 OBJS := $(obj-y)
 
 
-TARGET_LDS := $(CURDIR)/common/tboot.lds
+TARGET_LDS := $(CURDIR)/common/slboot.lds
 
 $(TARGET).gz : $(TARGET)
 	gzip -n -f -9 < $< > $@
