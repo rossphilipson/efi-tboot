@@ -1,4 +1,7 @@
 /*
+ * slboot.h: main header definition file
+ *
+ * Used to be:
  * tboot.h: shared data structure with MLE and kernel and functions
  *          used by kernel for runtime support
  *

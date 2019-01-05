@@ -39,7 +39,7 @@
 #include <io.h>
 #include <string.h>
 #include <printk.h>
-#include <tboot.h>
+#include <slboot.h>
 #include <loader.h>
 #include <acpi.h>
 #include <misc.h>

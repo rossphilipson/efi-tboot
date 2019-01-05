@@ -51,7 +51,7 @@
 #include <uuid.h>
 #include <loader.h>
 #include <e820.h>
-#include <tboot.h>
+#include <slboot.h>
 #include <mle.h>
 #include <hash.h>
 #include <cmdline.h>

@@ -42,7 +42,7 @@
 #include <misc.h>
 #include <printk.h>
 #include <cmdline.h>
-#include <tboot.h>
+#include <slboot.h>
 
 uint8_t g_log_level = TBOOT_LOG_LEVEL_ALL;
 uint8_t g_log_targets = TBOOT_LOG_TARGET_SERIAL | TBOOT_LOG_TARGET_VGA;

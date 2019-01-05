@@ -50,7 +50,7 @@
 #define PRINT printk
 #include <mle.h>
 #include <loader.h>
-#include <tboot.h>
+#include <slboot.h>
 #include <tpm.h>
 #include <tb_policy.h>
 #include <cmdline.h>

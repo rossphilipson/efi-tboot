@@ -47,7 +47,7 @@
 #include <tb_error.h>
 #include <tb_policy.h>
 #include <tpm.h>
-#include <tboot.h>
+#include <slboot.h>
 #include <txt/config_regs.h>
 #include <cmdline.h>
 

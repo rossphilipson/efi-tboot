@@ -1,4 +1,7 @@
 /*
+ * slboot.c: main entry point and pre-launch code for Trenchboot
+ *
+ * Used to be:
  * tboot.c: main entry point and "generic" routines for measured launch
  *          support
  *
@@ -64,7 +67,7 @@
 #include <txt/heap.h>
 #include <txt/verify.h>
 #include <tb_policy.h>
-#include <tboot.h>
+#include <slboot.h>
 #include <acpi.h>
 #include <cmdline.h>
 #include <tpm_20.h>

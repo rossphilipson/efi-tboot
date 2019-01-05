@@ -43,7 +43,7 @@
 #include <printk.h>
 #include <cmdline.h>
 #include <tpm.h>
-#include <tboot.h>
+#include <slboot.h>
 #include <mle.h>
 #include <txt/mtrrs.h>
 #include <multiboot.h>

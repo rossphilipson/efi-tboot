@@ -43,7 +43,7 @@
 #include <printk.h>
 #include <misc.h>
 #include <page.h>
-#include <tboot.h>
+#include <slboot.h>
 #include <loader.h>
 #include <acpi.h>
 #include <mle.h>

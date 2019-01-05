@@ -43,7 +43,7 @@
 #include <loader.h>
 #include <page.h>
 #include <e820.h>
-#include <tboot.h>
+#include <slboot.h>
 #include <linux_defns.h>
 #include <cmdline.h>
 #include <misc.h>

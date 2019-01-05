@@ -47,7 +47,7 @@
 #include <loader.h>
 #include <tb_error.h>
 #include <e820.h>
-#include <tboot.h>
+#include <slboot.h>
 #include <acpi.h>
 #include <mle.h>
 #include <hash.h>
