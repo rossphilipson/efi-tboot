@@ -52,7 +52,6 @@
 #include <msr.h>
 #include <atomic.h>
 #include <io.h>
-#include <mutex.h>
 #include <e820.h>
 #include <uuid.h>
 #include <loader.h>

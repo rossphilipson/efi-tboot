@@ -46,7 +46,6 @@
 #include <processor.h>
 #include <printk.h>
 #include <atomic.h>
-#include <mutex.h>
 #include <tpm.h>
 #include <uuid.h>
 #include <loader.h>
@@ -76,8 +75,6 @@ extern char _mle_end[];           /* end of text section */
 /*extern char _post_launch_entry[];*/ /* entry point post SENTER, in boot.S */
 
 extern long s3_flag;
-
-extern struct mutex ap_lock;
 
 /* MLE/kernel shared data page (in boot.S) */
 extern void apply_policy(tb_error_t error);
