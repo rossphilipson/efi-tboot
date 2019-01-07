@@ -142,7 +142,7 @@ void printk(const char *fmt, ...)
 
     /* prepend "TBOOT: " if the last line that was printed ended with a '\n' */
     if ( last_line_cr )
-        WRITE_LOGS("TBOOT: ", 8);
+        WRITE_LOGS("SLBOOT: ", 8);
 
     last_line_cr = (n > 0 && (*(pbuf+n-1) == '\n'));
     WRITE_LOGS(pbuf, n);
