@@ -69,8 +69,8 @@ extern bool jump_elf_image(const void *entry_point, uint32_t magic);
 extern bool jump_linux_image(const void *entry_point);
 extern bool is_sinit_acmod(const void *acmod_base, uint32_t acmod_size, 
                            bool quiet);
-extern void apply_policy(tb_error_t error);
-extern uint32_t g_mb_orig_size;
+extern void error_action(tb_error_t error);
+static uint32_t g_mb_orig_size;
 
 #define LOADER_CTX_BAD(xctx) \
     xctx == NULL ? true : \
@@ -1265,7 +1265,7 @@ bool launch_kernel()
         uint64_t size = TBOOT_SERIAL_LOG_SIZE;
         printk(TBOOT_INFO"reserving tboot memory log (%Lx - %Lx) in e820 table\n", base, (base + size - 1));
         if ( !e820_protect_region(base, size, E820_RESERVED) )
-            apply_policy(TB_ERR_FATAL);
+            error_action(TB_ERR_FATAL);
     }
 
     /* replace map in loader context with copy */

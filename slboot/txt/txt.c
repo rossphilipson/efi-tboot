@@ -77,7 +77,6 @@ extern char _mle_end[];           /* end of text section */
 extern long s3_flag;
 
 /* MLE/kernel shared data page (in boot.S) */
-extern void apply_policy(tb_error_t error);
 extern void print_event(const tpm12_pcr_event_t *evt);
 extern void print_event_2(void *evt, uint16_t alg);
 extern uint32_t print_event_2_1(void *evt);
@@ -706,7 +705,7 @@ tb_error_t txt_launch_environment(loader_ctx *lctx)
        printk(TBOOT_INFO"Relinquish CRB localility 0 before executing GETSEC[SENTER]...\n");
 	if (!tpm_relinquish_locality_crb(0)){
 		printk(TBOOT_INFO"Relinquish CRB locality 0 failed...\n");
-		apply_policy(TB_ERR_TPM_NOT_READY) ;
+		error_action(TB_ERR_TPM_NOT_READY) ;
 	}
    }
 

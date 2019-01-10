@@ -87,6 +87,7 @@ static const cmdline_option_t g_tboot_cmdline_options[] = {
     { "ignore_prev_err", "true"},    /* true|false */
     { "force_tpm2_legacy_log", "false"}, /* true|false */
     { "save_vtd", "false"},          /* true|false */
+    { "error_shutdown", "true"},    /* true|false */
     { NULL, NULL }
 };
 static char g_tboot_param_values[ARRAY_SIZE(g_tboot_cmdline_options)][MAX_VALUE_LEN];
@@ -562,6 +563,17 @@ bool get_tboot_save_vtd(void)
     if ( save_vtd != NULL && tb_strcmp(save_vtd, "true") == 0 )
        return true;
     return false;
+}
+
+uint32_t get_error_shutdown(void)
+{
+    const char *error_shutdown =
+       get_option_val(g_tboot_cmdline_options,
+              g_tboot_param_values,
+              "error_shutdown");
+    if ( error_shutdown != NULL && tb_strcmp(error_shutdown, "false") == 0 )
+       return TB_SHUTDOWN_REBOOT;
+    return TB_SHUTDOWN_HALT;
 }
 
 /*

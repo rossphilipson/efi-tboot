@@ -2578,8 +2578,6 @@ static bool alg_is_supported(u16 alg)
 
     return false;
 }
-__data tpm_contextsave_out tpm2_context_saved;
-
 static bool tpm20_context_save(struct tpm_if *ti, u32 locality, TPM_HANDLE handle, void *context_saved)
 {
     tpm_contextsave_in in;

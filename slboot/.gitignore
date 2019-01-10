@@ -3,5 +3,5 @@
 *.dsm
 *.lds
 *.gz
-tboot
-tboot-syms
+slboot
+slboot-syms

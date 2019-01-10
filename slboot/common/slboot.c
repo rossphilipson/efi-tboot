@@ -58,27 +58,34 @@
 #include <hash.h>
 #include <mle.h>
 #include <tpm.h>
-#include <tb_error.h>
+#include <slboot.h>
 #include <txt/txt.h>
 #include <txt/smx.h>
 #include <txt/mtrrs.h>
 #include <txt/config_regs.h>
 #include <txt/heap.h>
 #include <txt/verify.h>
-#include <tb_policy.h>
-#include <slboot.h>
 #include <acpi.h>
 #include <cmdline.h>
 #include <tpm_20.h>
 
-extern void apply_policy(tb_error_t error);
+extern void error_action(tb_error_t error);
 extern void verify_IA32_se_svn_status(const acm_hdr_t *acm_hdr);
-extern __data tpm_contextsave_out tpm2_context_saved;
 
 /* loader context struct saved so that post_launch() can use it */
 __data loader_ctx g_loader_ctx = { NULL, 0 };
 __data loader_ctx *g_ldr_ctx = &g_loader_ctx;
-__data uint32_t g_mb_orig_size = 0;
+
+static uint32_t g_default_error_action = TB_SHUTDOWN_HALT;
+
+void error_action(tb_error_t error)
+{
+    if ( error == TB_ERR_NONE )
+        return;
+
+    printk(TBOOT_ERR"error action invoked for: %x\n", error);
+    shutdown_system(g_default_error_action);
+}
 
 unsigned long get_tboot_mem_end(void)
 {
@@ -116,29 +123,29 @@ static void launch_racm(void)
     /* bsp check & tpm check done by caller */
     /* SMX must be supported */
     if ( !(cpuid_ecx(1) & CPUID_X86_FEATURE_SMX) )
-        apply_policy(TB_ERR_SMX_NOT_SUPPORTED);
+        error_action(TB_ERR_SMX_NOT_SUPPORTED);
 
     /* Enable SMX */
     write_cr4(read_cr4() | CR4_SMXE);
 
     /* prepare cpu */
     if ( !prepare_cpu() )
-        apply_policy(TB_ERR_FATAL);
+        error_action(TB_ERR_FATAL);
 
     /* prepare tpm */
     if ( !prepare_tpm() )
-        apply_policy(TB_ERR_TPM_NOT_READY);
+        error_action(TB_ERR_TPM_NOT_READY);
 
     /* Place RLPs in Wait for SIPI state */
     startup_rlps();
 
     /* Verify loader context */
     if ( !verify_loader_context(g_ldr_ctx) )
-        apply_policy(TB_ERR_FATAL);
+        error_action(TB_ERR_FATAL);
 
     /* load racm */
     err = txt_launch_racm(g_ldr_ctx);
-    apply_policy(err);
+    error_action(err);
 }
 
 void check_racm_result(void)
@@ -150,6 +157,8 @@ void check_racm_result(void)
 void begin_launch(void *addr, uint32_t magic)
 {
     tb_error_t err;
+
+    g_default_error_action = get_error_shutdown();
 
     if (g_ldr_ctx->type == 0)
         determine_loader_type(addr, magic);
@@ -192,12 +201,12 @@ void begin_launch(void *addr, uint32_t magic)
     /* we should only be executing on the BSP */
     if ( !(rdmsr(MSR_APICBASE) & APICBASE_BSP) ) {
         printk(TBOOT_INFO"entry processor is not BSP\n");
-        apply_policy(TB_ERR_FATAL);
+        error_action(TB_ERR_FATAL);
     }
     printk(TBOOT_INFO"BSP is cpu %u\n", get_apicid());
 
     /* make copy of e820 map that we will use and adjust */
-    if ( !copy_e820_map(g_ldr_ctx) )  apply_policy(TB_ERR_FATAL);
+    if ( !copy_e820_map(g_ldr_ctx) )  error_action(TB_ERR_FATAL);
 
     /* we need to make sure this is a (TXT-) capable platform before using */
     /* any of the features, incl. those required to check if the environment */
@@ -208,14 +217,14 @@ void begin_launch(void *addr, uint32_t magic)
        /* check if it is newer than BIOS provided version, then copy it to BIOS reserved region */
        g_sinit = copy_sinit(g_sinit);
        if (g_sinit == NULL)
-           apply_policy(TB_ERR_SINIT_NOT_PRESENT);
+           error_action(TB_ERR_SINIT_NOT_PRESENT);
        if (!verify_acmod(g_sinit))
-           apply_policy(TB_ERR_ACMOD_VERIFY_FAILED);
+           error_action(TB_ERR_ACMOD_VERIFY_FAILED);
     }
 
     /* make TPM ready for measured launch */
     if (!tpm_detect())
-       apply_policy(TB_ERR_TPM_NOT_READY);
+       error_action(TB_ERR_TPM_NOT_READY);
 
     /* verify SE enablement status */
     verify_IA32_se_svn_status(g_sinit);
@@ -227,25 +236,25 @@ void begin_launch(void *addr, uint32_t magic)
     /* need to verify that platform supports TXT before we can check error */
     /* (this includes TPM support) */
     err = supports_txt();
-    apply_policy(err);
+    error_action(err);
 
     /* print any errors on last boot, which must be from TXT launch */
     txt_display_errors();
     if (txt_has_error() && get_tboot_ignore_prev_err() == false) {
-        apply_policy(TB_ERR_PREV_TXT_ERROR);
+        error_action(TB_ERR_PREV_TXT_ERROR);
     }
 
     /* need to verify that platform can perform measured launch */
     err = verify_platform();
-    apply_policy(err);
+    error_action(err);
 
     /* ensure there are modules */
     if ( !verify_loader_context(g_ldr_ctx) )
-        apply_policy(TB_ERR_FATAL);
+        error_action(TB_ERR_FATAL);
 
     /* make the CPU ready for measured launch */
     if ( !prepare_cpu() )
-        apply_policy(TB_ERR_FATAL);
+        error_action(TB_ERR_FATAL);
 
     /* check for error from previous boot */
     printk(TBOOT_INFO"checking previous errors on the last boot.\n\t");
@@ -255,11 +264,11 @@ void begin_launch(void *addr, uint32_t magic)
         printk(TBOOT_INFO"last boot has no error.\n");
 
     if ( !prepare_tpm() )
-        apply_policy(TB_ERR_TPM_NOT_READY);
+        error_action(TB_ERR_TPM_NOT_READY);
 
     /* launch the measured environment */
     err = txt_launch_environment(g_ldr_ctx);
-    apply_policy(err);
+    error_action(err);
 }
 
 void shutdown_system(uint32_t shutdown_type)
