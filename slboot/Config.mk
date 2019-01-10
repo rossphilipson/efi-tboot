@@ -44,10 +44,10 @@ CFLAGS += -O2 -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2
 endif
 
 #
-# tboot-specific build settings
+# slboot-specific build settings
 #
-RELEASEVER  := "1.9.9"
-RELEASETIME := "2018-11-30 15:00 +0800"
+RELEASEVER  := "1.0.0"
+RELEASETIME := "2019-01-15 15:00 +0800"
 #ROOTDIR ?= $(CURDIR)
 
 #include $(ROOTDIR)/Config.mk

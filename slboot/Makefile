@@ -21,10 +21,8 @@ obj-y += common/printk.o common/rijndael.o common/sha1.o
 obj-y += common/strcmp.o common/strlen.o common/strncmp.o common/strncpy.o
 obj-y += common/strtoul.o common/tb_error.o common/slboot.o common/tpm.o
 obj-y += common/vga.o common/vmac.o common/vsprintf.o
-obj-y += txt/acmod.o txt/errors.o txt/heap.o txt/mtrrs.o txt/txt.o
-obj-y += txt/verify.o
-obj-y += common/tpm_12.o common/tpm_20.o
-obj-y += common/sha256.o
+obj-y += txt/acmod.o txt/errors.o txt/heap.o txt/mtrrs.o txt/txt.o txt/verify.o
+obj-y += common/tpm_12.o common/tpm_20.o common/sha256.o
 
 OBJS := $(obj-y)
 
@@ -47,7 +45,7 @@ $(TARGET) : $(OBJS) $(TARGET_LDS)
 
 #.PHONY: FORCE
 #FORCE :
-	@: # do nothing
+#	@: # do nothing
 #
 # universal rules
 #
@@ -89,13 +87,13 @@ define set_exuberant_flags
 endef
 
 .PHONY: TAGS
-TAGS : 
+TAGS :
 	rm -f TAGS; \
 	$(call set_exuberant_flags,etags); \
 	$(all_sources) | xargs etags $$exuberant_flags -a
 
 .PHONY: tags
-tags : 
+tags :
 	rm -f tags; \
 	$(call set_exuberant_flags,ctags); \
 	$(all_sources) | xargs ctags $$exuberant_flags -a
