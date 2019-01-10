@@ -112,7 +112,7 @@ static bool read_processor_info(void)
     if ( (g_cpuid_ext_feat_info & CPUID_X86_FEATURE_VMX) ||
          (g_cpuid_ext_feat_info & CPUID_X86_FEATURE_SMX) ) {
         g_feat_ctrl_msr = rdmsr(MSR_IA32_FEATURE_CONTROL);
-        printk(TBOOT_DETA"IA32_FEATURE_CONTROL_MSR: %08lx\n", g_feat_ctrl_msr);        
+        printk(TBOOT_DETA"IA32_FEATURE_CONTROL_MSR: %08lx\n", g_feat_ctrl_msr);
     }
 
     return true;
@@ -292,7 +292,6 @@ tb_error_t txt_verify_platform(void)
 
     return TB_ERR_NONE;
 }
-
 
 /*
  * Local variables:

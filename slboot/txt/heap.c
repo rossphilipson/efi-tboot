@@ -88,7 +88,7 @@ static void print_custom_elt(const heap_ext_data_element_t *elt)
 
     printk(TBOOT_DETA"\t\t CUSTOM:\n");
     printk(TBOOT_DETA"\t\t     size: %u\n", elt->size);
-    printk(TBOOT_DETA"\t\t     uuid: "); print_uuid(&custom_elt->uuid);            
+    printk(TBOOT_DETA"\t\t     uuid: "); print_uuid(&custom_elt->uuid);
     printk(TBOOT_DETA"\n");
 }
 
@@ -147,21 +147,21 @@ static void print_evt_log_ptr_elt(const heap_ext_data_element_t *elt)
 
 void print_event_2(void *evt, uint16_t alg)
 {
-    uint32_t hash_size, data_size; 
+    uint32_t hash_size, data_size;
     void *next = evt;
 
-    hash_size = get_hash_size(alg); 
+    hash_size = get_hash_size(alg);
     if ( hash_size == 0 )
         return;
 
     printk(TBOOT_DETA"\t\t\t Event:\n");
     printk(TBOOT_DETA"\t\t\t     PCRIndex: %u\n", *((uint32_t *)next));
-    
+
     if ( *((uint32_t *)next) > 24 && *((uint32_t *)next) != 0xFF ) {
          printk(TBOOT_DETA"\t\t\t           Wrong Event Log.\n");
          return;
      }
-    
+
     next += sizeof(uint32_t);
     printk(TBOOT_DETA"\t\t\t         Type: 0x%x\n", *((uint32_t *)next));
 
@@ -201,7 +201,7 @@ uint32_t print_event_2_1_log_header(void *evt)
 
     // print out event log header data
 
-    printk(TBOOT_DETA"\t\t 	   header event data:  \n"); 
+    printk(TBOOT_DETA"\t\t 	   header event data:  \n");
     printk(TBOOT_DETA"\t\t\t              signature: %s\n", evt_data_ptr->signature);
     printk(TBOOT_DETA"\t\t\t         platform_class: %u\n", evt_data_ptr->platform_class);
     printk(TBOOT_DETA"\t\t\t     spec_version_major: %u\n", evt_data_ptr->spec_version_major);
@@ -234,32 +234,32 @@ uint32_t print_event_2_1(void *evt)
     if (evt_ptr->digest.count != 0) {
         evt_data_ptr = (uint8_t *)evt_ptr->digest.digests[0].digest;
         hash_alg = evt_ptr->digest.digests[0].hash_alg;
-        for ( uint32_t i = 0; i < evt_ptr->digest.count; i++ ) { 
+        for ( uint32_t i = 0; i < evt_ptr->digest.count; i++ ) {
             switch (hash_alg) {
                 case TB_HALG_SHA1:
                     printk(TBOOT_INFO"SHA1: \n");
                     print_hex(NULL, evt_data_ptr, SHA1_LENGTH);
                     evt_data_ptr += SHA1_LENGTH;
                     break;
- 
+
                 case TB_HALG_SHA256:
                     printk(TBOOT_INFO"SHA256: \n");
                     print_hex(NULL, evt_data_ptr, SHA256_LENGTH);
                     evt_data_ptr += SHA256_LENGTH;
                     break;
- 
+
                 case TB_HALG_SM3:
                     printk(TBOOT_INFO"SM3_256: \n");
                     print_hex(NULL, evt_data_ptr, SM3_LENGTH);
                     evt_data_ptr += SM3_LENGTH;
                     break;
- 
+
                 case TB_HALG_SHA384:
                     printk(TBOOT_INFO"SHA384: \n");
                     print_hex(NULL, evt_data_ptr, SHA384_LENGTH);
-                    evt_data_ptr += SHA384_LENGTH;				
+                    evt_data_ptr += SHA384_LENGTH;
                     break;
- 
+
                 case TB_HALG_SHA512:
                     printk(TBOOT_INFO"SHA512:  \n");
                     print_hex(NULL, evt_data_ptr, SHA512_LENGTH);
@@ -277,7 +277,7 @@ uint32_t print_event_2_1(void *evt)
         evt_data_ptr += sizeof(uint32_t);
         print_hex("\t\t\t     ", evt_data_ptr, event_size);
     }
-    else { 
+    else {
         printk(TBOOT_DETA"sth wrong in TCG event log: algoritm count = %u\n", evt_ptr->digest.count);
         evt_data_ptr= (uint8_t *)evt +12;
     }
@@ -308,18 +308,18 @@ static void print_evt_log_ptr_elt_2(const heap_ext_data_element_t *elt)
             continue;
         }
 
-        uint32_t hash_size, data_size; 
-        hash_size = get_hash_size(log_descr->alg); 
+        uint32_t hash_size, data_size;
+        hash_size = get_hash_size(log_descr->alg);
         if ( hash_size == 0 )
             return;
 
         void *curr, *next;
 
-        curr = (void *)(unsigned long)log_descr->phys_addr + 
+        curr = (void *)(unsigned long)log_descr->phys_addr +
                 log_descr->pcr_events_offset;
         next = (void *)(unsigned long)log_descr->phys_addr +
                 log_descr->next_event_offset;
-        
+
         //It is required for each of the non-SHA1 event log the first entry to be the following
         //TPM1.2 style TCG_PCR_EVENT record specifying type of the log:
         //TCG_PCR_EVENT.PCRIndex = 0
@@ -346,13 +346,13 @@ static void print_evt_log_ptr_elt_2(const heap_ext_data_element_t *elt)
 static void print_evt_log_ptr_elt_2_1(const heap_ext_data_element_t *elt)
 {
     const heap_event_log_ptr_elt2_1_t *elog_elt = (const heap_event_log_ptr_elt2_1_t *)elt->data;
-   
+
     printk(TBOOT_DETA"\t TCG EVENT_LOG_PTR:\n");
     printk(TBOOT_DETA"\t\t       type: %d\n", elt->type);
     printk(TBOOT_DETA"\t\t       size: %u\n", elt->size);
     printk(TBOOT_DETA"\t TCG Event Log Descrption:\n");
     printk(TBOOT_DETA"\t     allcoated_event_container_size: %u\n", elog_elt->allcoated_event_container_size);
-    printk(TBOOT_DETA"\t                       EventsOffset: [%u,%u]\n", 
+    printk(TBOOT_DETA"\t                       EventsOffset: [%u,%u]\n",
            elog_elt->first_record_offset, elog_elt->next_record_offset);
 
     if (elog_elt->first_record_offset == elog_elt->next_record_offset) {
@@ -362,9 +362,9 @@ static void print_evt_log_ptr_elt_2_1(const heap_ext_data_element_t *elt)
     void *curr, *next;
 
     curr = (void *)(unsigned long)elog_elt->phys_addr + elog_elt->first_record_offset;
-    next = (void *)(unsigned long)elog_elt->phys_addr + elog_elt->next_record_offset;               
+    next = (void *)(unsigned long)elog_elt->phys_addr + elog_elt->next_record_offset;
     uint32_t event_header_data_size = print_event_2_1_log_header(curr);
-		
+
     curr += sizeof(tcg_pcr_event) + event_header_data_size;
     while ( curr < next ) {
         curr += print_event_2_1(curr);
@@ -683,7 +683,7 @@ uint64_t calc_os_sinit_data_size(uint32_t version)
         return size[version - MIN_OS_SINIT_DATA_VER];
 }
 
-void print_os_sinit_data_vtdpmr(const os_sinit_data_t *os_sinit_data)
+static void print_os_sinit_data_vtdpmr(const os_sinit_data_t *os_sinit_data)
 {
     printk(TBOOT_DETA"\t vtd_pmr_lo_base: 0x%Lx\n", os_sinit_data->vtd_pmr_lo_base);
     printk(TBOOT_DETA"\t vtd_pmr_lo_size: 0x%Lx\n", os_sinit_data->vtd_pmr_lo_size);

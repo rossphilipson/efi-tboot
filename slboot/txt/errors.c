@@ -114,12 +114,12 @@ void txt_display_errors(void)
 bool txt_has_error(void)
 {
     txt_errorcode_t err;
-    
+
     err = (txt_errorcode_t)read_pub_config_reg(TXTCR_ERRORCODE);
     if (err._raw == 0 || err._raw == 0xc0000001 || err._raw == 0xc0000009) {
         return false;
-    } 
-    else {   
+    }
+    else {
         return true;
     }
 }
@@ -134,7 +134,7 @@ enum ENUM_ACM_ENTRY {
     ERR_NO_UCODE_UPDATE ,
     ERR_DEBUG_MCU,
     ERR_DMI_LINK_DOWN,
-    ERR_ACM_REVOKED,	
+    ERR_ACM_REVOKED,
     ERR_TPM_DOUBLE_AUX
 };
 #define CLASS_TPM_ACCESS 0x4
@@ -161,7 +161,7 @@ enum ENUM_TPM_ACCESS {
     ERR_INVALID_RESPONSE_WR = 0x1D,     /* The response from the TPM was invalid */
     ERR_INVALID_RESPONSE_RD = 0x1E,     /* The response from the TPM was invalid */
     ERR_RESPONSE_TIMEOUT = 0x1F         /* Time out for TPM response */
-};     
+};
 #define CLASS_MISC_CONFIG 0x8
 enum ENUM_MISC_CONFIG {
     ERR_INTERRUPT = 1,
@@ -188,7 +188,7 @@ void txt_get_racm_error(void)
         printk(TBOOT_ERR
                "Cannot retrieve status - ERRORSTS register is not valid.\n");
         return;
-    } 
+    }
 
     if ( err.external == 0 ) {      /* processor error */
         printk(TBOOT_ERR"CPU generated error 0x%x\n", (uint32_t)err.type);
