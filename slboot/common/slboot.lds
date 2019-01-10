@@ -10,7 +10,7 @@ SECTIONS
   . = 0x0800000;
 
   .text : {
-	*(.tboot_multiboot_header)
+	*(.slboot_multiboot_header)
   . = ALIGN(4096);
 	*(.mlept)
 

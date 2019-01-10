@@ -46,7 +46,7 @@
 #define cs16_sel    4<<3
 #define ds16_sel    5<<3
 
-.section ".tboot_multiboot_header","w"
+.section ".slboot_multiboot_header","w"
         .align 4
 /* multiboot header */
 multiboot_header:
