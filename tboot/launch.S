@@ -347,7 +347,7 @@ start64:
 	movw	%bx, 6(%rcx)
 	shrq	$16, %rbx
 	movl	%ebx, 8(%rcx)
-	cmpw	$18, %dx
+	cmpw	$12, %dx
 	jnz	2f
 	/* MCE vector */
 	movl	$0x8f00, 8(%rcx) /* P, DPL=0, 64b, Trap */
