@@ -836,20 +836,20 @@ void verify_IA32_se_svn_status(const acm_hdr_t *acm_hdr)
 {
     struct tpm_if *tpm = get_tpm();
     const struct tpm_if_fp *tpm_fp = get_tpm_fp();
-  
+
     printk(TBOOT_INFO"SGX:verify_IA32_se_svn_status is called\n");
-        
-    //check if SGX is enabled by cpuid with ax=7, cx=0 
+
+    //check if SGX is enabled by cpuid with ax=7, cx=0
     if ((cpuid_ebx1(7,0) & 0x00000004) == 0){
         printk(TBOOT_ERR"SGX is not enabled, cpuid.ebx: 0x%x\n", cpuid_ebx1(7,0));
         return;
     }
     printk(TBOOT_INFO"SGX is enabled, cpuid.ebx:0x%x\n", cpuid_ebx1(7,0));
     printk(TBOOT_INFO"Comparing se_svn with ACM Header se_svn\n");
-    
+
     if (((rdmsr(MSR_IA32_SE_SVN_STATUS)>>16) & 0xff) != acm_hdr->se_svn) {
         printk(TBOOT_INFO"se_svn is not equal to ACM se_svn\n");
-        if (!tpm_fp->nv_write(tpm, 0, tpm->sgx_svn_index, 0, (uint8_t *)&(acm_hdr->se_svn), 1)) 
+        if (!tpm_fp->nv_write(tpm, 0, tpm->sgx_svn_index, 0, (uint8_t *)&(acm_hdr->se_svn), 1))
             printk(TBOOT_ERR"Write sgx_svn_index 0x%x failed. \n", tpm->sgx_svn_index);
         else
             printk(TBOOT_INFO"Write sgx_svn_index with 0x%x successful.\n", acm_hdr->se_svn);
@@ -858,7 +858,7 @@ void verify_IA32_se_svn_status(const acm_hdr_t *acm_hdr)
         // printk(TBOOT_INFO"SGX:A reset is required in this boot\n");
            outb(0xcf9, 0x06);
     }
-    else 
+    else
         printk(TBOOT_INFO"se_svn is equal to ACM se_svn\n");
 
 }
@@ -980,7 +980,7 @@ bool verify_acmod(const acm_hdr_t *acm_hdr)
                info_table->os_sinit_data_ver);
     }
 
-	return true;
+    return true;
 }
 #endif          /*  IS_INCLUDED  */
 /*

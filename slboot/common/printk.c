@@ -38,16 +38,13 @@
 #include <stdarg.h>
 #include <compiler.h>
 #include <string.h>
-#include <mutex.h>
 #include <misc.h>
 #include <printk.h>
 #include <cmdline.h>
-#include <tboot.h>
+#include <slboot.h>
 
 uint8_t g_log_level = TBOOT_LOG_LEVEL_ALL;
 uint8_t g_log_targets = TBOOT_LOG_TARGET_SERIAL | TBOOT_LOG_TARGET_VGA;
-
-static struct mutex print_lock;
 
 /*
  * memory logging
@@ -98,8 +95,6 @@ static void memlog_write(const char *str, unsigned int count)
 
 void printk_init(void)
 {
-    mtx_init(&print_lock);
-
     /* parse loglvl from string to int */
     get_tboot_loglvl();
 
@@ -145,14 +140,12 @@ void printk(const char *fmt, ...)
     if ( !(g_log_level & log_level) )
         goto exit;
 
-    mtx_enter(&print_lock);
     /* prepend "TBOOT: " if the last line that was printed ended with a '\n' */
     if ( last_line_cr )
-        WRITE_LOGS("TBOOT: ", 8);
+        WRITE_LOGS("SLBOOT: ", 8);
 
     last_line_cr = (n > 0 && (*(pbuf+n-1) == '\n'));
     WRITE_LOGS(pbuf, n);
-    mtx_leave(&print_lock);
 
 exit:
     va_end(ap);

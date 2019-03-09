@@ -47,7 +47,7 @@
 #include <uuid.h>
 #include <loader.h>
 #include <e820.h>
-#include <tboot.h>
+#include <slboot.h>
 #include <elf_defns.h>
 #include <linux_defns.h>
 #include <tb_error.h>
@@ -57,9 +57,6 @@
 #include <cmdline.h>
 #include <tpm.h>
 
-/* copy of kernel/VMM command line so that can append 'tboot=0x1234' */
-static char *new_cmdline = (char *)TBOOT_KERNEL_CMDLINE_ADDR;
-
 /* multiboot struct saved so that post_launch() can use it (in tboot.c) */
 extern loader_ctx *g_ldr_ctx;
 extern bool get_elf_image_range(const elf_header_t *elf, void **start, void **end);
@@ -67,13 +64,13 @@ extern bool is_elf_image(const void *image, size_t size);
 extern bool expand_elf_image(const elf_header_t *elf, void **entry_point);
 extern bool expand_linux_image(const void *linux_image, size_t linux_size,
                                const void *initrd_image, size_t initrd_size,
-                               void **entry_point, bool is_measured_launch);
+                               void **entry_point);
 extern bool jump_elf_image(const void *entry_point, uint32_t magic);
 extern bool jump_linux_image(const void *entry_point);
 extern bool is_sinit_acmod(const void *acmod_base, uint32_t acmod_size, 
                            bool quiet);
-extern void apply_policy(tb_error_t error);
-extern uint32_t g_mb_orig_size;
+extern void error_action(tb_error_t error);
+static uint32_t g_mb_orig_size;
 
 #define LOADER_CTX_BAD(xctx) \
     xctx == NULL ? true : \
@@ -1243,7 +1240,7 @@ determine_multiboot_type(void *image)
     return result;
 }
 
-bool launch_kernel(bool is_measured_launch)
+bool launch_kernel()
 {
     enum { ELF, LINUX } kernel_type;
 
@@ -1268,7 +1265,7 @@ bool launch_kernel(bool is_measured_launch)
         uint64_t size = TBOOT_SERIAL_LOG_SIZE;
         printk(TBOOT_INFO"reserving tboot memory log (%Lx - %Lx) in e820 table\n", base, (base + size - 1));
         if ( !e820_protect_region(base, size, E820_RESERVED) )
-            apply_policy(TB_ERR_FATAL);
+            error_action(TB_ERR_FATAL);
     }
 
     /* replace map in loader context with copy */
@@ -1377,7 +1374,7 @@ bool launch_kernel(bool is_measured_launch)
 
         expand_linux_image(kernel_image, kernel_size,
                            initrd_image, initrd_size,
-                           &kernel_entry_point, is_measured_launch);
+                           &kernel_entry_point);
         printk(TBOOT_INFO"transfering control to kernel @%p...\n", 
                kernel_entry_point);
         /* (optionally) pause when transferring to kernel */

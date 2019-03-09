@@ -88,7 +88,7 @@ static void print_custom_elt(const heap_ext_data_element_t *elt)
 
     printk(TBOOT_DETA"\t\t CUSTOM:\n");
     printk(TBOOT_DETA"\t\t     size: %u\n", elt->size);
-    printk(TBOOT_DETA"\t\t     uuid: "); print_uuid(&custom_elt->uuid);            
+    printk(TBOOT_DETA"\t\t     uuid: "); print_uuid(&custom_elt->uuid);
     printk(TBOOT_DETA"\n");
 }
 
@@ -147,21 +147,21 @@ static void print_evt_log_ptr_elt(const heap_ext_data_element_t *elt)
 
 void print_event_2(void *evt, uint16_t alg)
 {
-    uint32_t hash_size, data_size; 
+    uint32_t hash_size, data_size;
     void *next = evt;
 
-    hash_size = get_hash_size(alg); 
+    hash_size = get_hash_size(alg);
     if ( hash_size == 0 )
         return;
 
     printk(TBOOT_DETA"\t\t\t Event:\n");
     printk(TBOOT_DETA"\t\t\t     PCRIndex: %u\n", *((uint32_t *)next));
-    
+
     if ( *((uint32_t *)next) > 24 && *((uint32_t *)next) != 0xFF ) {
          printk(TBOOT_DETA"\t\t\t           Wrong Event Log.\n");
          return;
      }
-    
+
     next += sizeof(uint32_t);
     printk(TBOOT_DETA"\t\t\t         Type: 0x%x\n", *((uint32_t *)next));
 
@@ -201,7 +201,7 @@ uint32_t print_event_2_1_log_header(void *evt)
 
     // print out event log header data
 
-    printk(TBOOT_DETA"\t\t 	   header event data:  \n"); 
+    printk(TBOOT_DETA"\t\t 	   header event data:  \n");
     printk(TBOOT_DETA"\t\t\t              signature: %s\n", evt_data_ptr->signature);
     printk(TBOOT_DETA"\t\t\t         platform_class: %u\n", evt_data_ptr->platform_class);
     printk(TBOOT_DETA"\t\t\t     spec_version_major: %u\n", evt_data_ptr->spec_version_major);
@@ -234,32 +234,32 @@ uint32_t print_event_2_1(void *evt)
     if (evt_ptr->digest.count != 0) {
         evt_data_ptr = (uint8_t *)evt_ptr->digest.digests[0].digest;
         hash_alg = evt_ptr->digest.digests[0].hash_alg;
-        for ( uint32_t i = 0; i < evt_ptr->digest.count; i++ ) { 
+        for ( uint32_t i = 0; i < evt_ptr->digest.count; i++ ) {
             switch (hash_alg) {
                 case TB_HALG_SHA1:
                     printk(TBOOT_INFO"SHA1: \n");
                     print_hex(NULL, evt_data_ptr, SHA1_LENGTH);
                     evt_data_ptr += SHA1_LENGTH;
                     break;
- 
+
                 case TB_HALG_SHA256:
                     printk(TBOOT_INFO"SHA256: \n");
                     print_hex(NULL, evt_data_ptr, SHA256_LENGTH);
                     evt_data_ptr += SHA256_LENGTH;
                     break;
- 
+
                 case TB_HALG_SM3:
                     printk(TBOOT_INFO"SM3_256: \n");
                     print_hex(NULL, evt_data_ptr, SM3_LENGTH);
                     evt_data_ptr += SM3_LENGTH;
                     break;
- 
+
                 case TB_HALG_SHA384:
                     printk(TBOOT_INFO"SHA384: \n");
                     print_hex(NULL, evt_data_ptr, SHA384_LENGTH);
-                    evt_data_ptr += SHA384_LENGTH;				
+                    evt_data_ptr += SHA384_LENGTH;
                     break;
- 
+
                 case TB_HALG_SHA512:
                     printk(TBOOT_INFO"SHA512:  \n");
                     print_hex(NULL, evt_data_ptr, SHA512_LENGTH);
@@ -277,7 +277,7 @@ uint32_t print_event_2_1(void *evt)
         evt_data_ptr += sizeof(uint32_t);
         print_hex("\t\t\t     ", evt_data_ptr, event_size);
     }
-    else { 
+    else {
         printk(TBOOT_DETA"sth wrong in TCG event log: algoritm count = %u\n", evt_ptr->digest.count);
         evt_data_ptr= (uint8_t *)evt +12;
     }
@@ -308,18 +308,18 @@ static void print_evt_log_ptr_elt_2(const heap_ext_data_element_t *elt)
             continue;
         }
 
-        uint32_t hash_size, data_size; 
-        hash_size = get_hash_size(log_descr->alg); 
+        uint32_t hash_size, data_size;
+        hash_size = get_hash_size(log_descr->alg);
         if ( hash_size == 0 )
             return;
 
         void *curr, *next;
 
-        curr = (void *)(unsigned long)log_descr->phys_addr + 
+        curr = (void *)(unsigned long)log_descr->phys_addr +
                 log_descr->pcr_events_offset;
         next = (void *)(unsigned long)log_descr->phys_addr +
                 log_descr->next_event_offset;
-        
+
         //It is required for each of the non-SHA1 event log the first entry to be the following
         //TPM1.2 style TCG_PCR_EVENT record specifying type of the log:
         //TCG_PCR_EVENT.PCRIndex = 0
@@ -346,13 +346,13 @@ static void print_evt_log_ptr_elt_2(const heap_ext_data_element_t *elt)
 static void print_evt_log_ptr_elt_2_1(const heap_ext_data_element_t *elt)
 {
     const heap_event_log_ptr_elt2_1_t *elog_elt = (const heap_event_log_ptr_elt2_1_t *)elt->data;
-   
+
     printk(TBOOT_DETA"\t TCG EVENT_LOG_PTR:\n");
     printk(TBOOT_DETA"\t\t       type: %d\n", elt->type);
     printk(TBOOT_DETA"\t\t       size: %u\n", elt->size);
     printk(TBOOT_DETA"\t TCG Event Log Descrption:\n");
     printk(TBOOT_DETA"\t     allcoated_event_container_size: %u\n", elog_elt->allcoated_event_container_size);
-    printk(TBOOT_DETA"\t                       EventsOffset: [%u,%u]\n", 
+    printk(TBOOT_DETA"\t                       EventsOffset: [%u,%u]\n",
            elog_elt->first_record_offset, elog_elt->next_record_offset);
 
     if (elog_elt->first_record_offset == elog_elt->next_record_offset) {
@@ -362,9 +362,9 @@ static void print_evt_log_ptr_elt_2_1(const heap_ext_data_element_t *elt)
     void *curr, *next;
 
     curr = (void *)(unsigned long)elog_elt->phys_addr + elog_elt->first_record_offset;
-    next = (void *)(unsigned long)elog_elt->phys_addr + elog_elt->next_record_offset;               
+    next = (void *)(unsigned long)elog_elt->phys_addr + elog_elt->next_record_offset;
     uint32_t event_header_data_size = print_event_2_1_log_header(curr);
-		
+
     curr += sizeof(tcg_pcr_event) + event_header_data_size;
     while ( curr < next ) {
         curr += print_event_2_1(curr);
@@ -643,60 +643,6 @@ bool verify_bios_data(const txt_heap_t *txt_heap)
     return true;
 }
 
-static void print_os_mle_data(const os_mle_data_t *os_mle_data)
-{
-    printk(TBOOT_DETA"os_mle_data (@%p, %Lx):\n", os_mle_data,
-           *((uint64_t *)os_mle_data - 1));
-    printk(TBOOT_DETA"\t version: %u\n", os_mle_data->version);
-    /* TBD: perhaps eventually print saved_mtrr_state field */
-    printk(TBOOT_DETA"\t loader context addr: %p\n", os_mle_data->lctx_addr);
-}
-
-static bool verify_os_mle_data(const txt_heap_t *txt_heap)
-{
-    uint64_t size, heap_size;
-    os_mle_data_t *os_mle_data;
-
-    /* check size */
-    heap_size = read_priv_config_reg(TXTCR_HEAP_SIZE);
-    size = get_os_mle_data_size(txt_heap);
-    if ( size == 0 ) {
-        printk(TBOOT_ERR"OS to MLE data size is 0\n");
-        return false;
-    }
-    if ( size > heap_size ) {
-        printk(TBOOT_ERR"OS to MLE data size is larger than heap size "
-               "(%Lx, heap size=%Lx)\n", size, heap_size);
-        return false;
-    }
-    if ( size != (sizeof(os_mle_data_t) + sizeof(size)) ) {
-        printk(TBOOT_ERR"OS to MLE data size (%Lx) is not equal to "
-               "os_mle_data_t size (%x)\n", size, sizeof(os_mle_data_t));
-        return false;
-    }
-
-    os_mle_data = get_os_mle_data_start(txt_heap);
-
-    /* check version */
-    /* since this data is from our pre-launch to post-launch code only, it */
-    /* should always be this */
-    if ( os_mle_data->version != 3 ) {
-        printk(TBOOT_ERR"unsupported OS to MLE data version (%u)\n",
-               os_mle_data->version);
-        return false;
-    }
-
-    /* field checks */
-    if ( os_mle_data->lctx_addr == NULL ) {
-        printk(TBOOT_ERR"OS to MLE data loader context addr field is NULL\n");
-        return false;
-    }
-
-    print_os_mle_data(os_mle_data);
-
-    return true;
-}
-
 /*
  * Make sure version is in [MIN_OS_SINIT_DATA_VER, MAX_OS_SINIT_DATA_VER]
  * before calling calc_os_sinit_data_size
@@ -737,7 +683,7 @@ uint64_t calc_os_sinit_data_size(uint32_t version)
         return size[version - MIN_OS_SINIT_DATA_VER];
 }
 
-void print_os_sinit_data_vtdpmr(const os_sinit_data_t *os_sinit_data)
+static void print_os_sinit_data_vtdpmr(const os_sinit_data_t *os_sinit_data)
 {
     printk(TBOOT_DETA"\t vtd_pmr_lo_base: 0x%Lx\n", os_sinit_data->vtd_pmr_lo_base);
     printk(TBOOT_DETA"\t vtd_pmr_lo_size: 0x%Lx\n", os_sinit_data->vtd_pmr_lo_size);
@@ -763,191 +709,6 @@ void print_os_sinit_data(const os_sinit_data_t *os_sinit_data)
         printk(TBOOT_DETA"\t efi_rsdt_ptr: 0x%Lx\n", os_sinit_data->efi_rsdt_ptr);
     if ( os_sinit_data->version >= 6 )
         print_ext_data_elts(os_sinit_data->ext_data_elts);
-}
-
-static bool verify_os_sinit_data(const txt_heap_t *txt_heap)
-{
-    uint64_t size, heap_size;
-    os_sinit_data_t *os_sinit_data;
-
-    /* check size */
-    heap_size = read_priv_config_reg(TXTCR_HEAP_SIZE);
-    size = get_os_sinit_data_size(txt_heap);
-    if ( size == 0 ) {
-        printk(TBOOT_ERR"OS to SINIT data size is 0\n");
-        return false;
-    }
-    if ( size > heap_size ) {
-        printk(TBOOT_ERR"OS to SINIT data size is larger than heap size "
-               "(%Lx, heap size=%Lx)\n", size, heap_size);
-        return false;
-    }
-
-    os_sinit_data = get_os_sinit_data_start(txt_heap);
-
-    /* check version (but since we create this, it should always be OK) */
-    if ( os_sinit_data->version < MIN_OS_SINIT_DATA_VER ||
-         os_sinit_data->version > MAX_OS_SINIT_DATA_VER ) {
-        printk(TBOOT_ERR"unsupported OS to SINIT data version (%u)\n",
-               os_sinit_data->version);
-        return false;
-    }
-
-    if ( size != calc_os_sinit_data_size(os_sinit_data->version) ) {
-        printk(TBOOT_ERR"OS to SINIT data size (%Lx) does not match for version (%x)\n",
-               size, sizeof(os_sinit_data_t));
-        return false;
-    }
-
-    if ( os_sinit_data->version >= 6 ) {
-        if ( !verify_ext_data_elts(os_sinit_data->ext_data_elts,
-                                   size - sizeof(*os_sinit_data) - sizeof(size)) )
-            return false;
-    }
-
-    print_os_sinit_data(os_sinit_data);
-
-    return true;
-}
-
-static void print_sinit_mdrs(const sinit_mdr_t mdrs[], uint32_t num_mdrs)
-{
-    static const char *mem_types[] = {"GOOD", "SMRAM OVERLAY",
-                                      "SMRAM NON-OVERLAY",
-                                      "PCIE EXTENDED CONFIG", "PROTECTED"};
-
-    printk(TBOOT_DETA"\t sinit_mdrs:\n");
-    for ( unsigned int i = 0; i < num_mdrs; i++ ) {
-        printk(TBOOT_DETA"\t\t %016Lx - %016Lx ", mdrs[i].base,
-               mdrs[i].base + mdrs[i].length);
-        if ( mdrs[i].mem_type < sizeof(mem_types)/sizeof(mem_types[0]) )
-            printk(TBOOT_DETA"(%s)\n", mem_types[mdrs[i].mem_type]);
-        else
-            printk(TBOOT_DETA"(%d)\n", (int)mdrs[i].mem_type);
-    }
-}
-
-static void print_sinit_mle_data(const sinit_mle_data_t *sinit_mle_data)
-{
-    printk(TBOOT_DETA"sinit_mle_data (@%p, %Lx):\n", sinit_mle_data,
-           *((uint64_t *)sinit_mle_data - 1));
-    printk(TBOOT_DETA"\t version: %u\n", sinit_mle_data->version);
-    printk(TBOOT_DETA"\t bios_acm_id: \n\t");
-    print_heap_hash(sinit_mle_data->bios_acm_id);
-    printk(TBOOT_DETA"\t edx_senter_flags: 0x%08x\n",
-           sinit_mle_data->edx_senter_flags);
-    printk(TBOOT_DETA"\t mseg_valid: 0x%Lx\n", sinit_mle_data->mseg_valid);
-    printk(TBOOT_DETA"\t sinit_hash:\n\t"); print_heap_hash(sinit_mle_data->sinit_hash);
-    printk(TBOOT_DETA"\t mle_hash:\n\t"); print_heap_hash(sinit_mle_data->mle_hash);
-    printk(TBOOT_DETA"\t stm_hash:\n\t"); print_heap_hash(sinit_mle_data->stm_hash);
-    printk(TBOOT_DETA"\t lcp_policy_hash:\n\t");
-        print_heap_hash(sinit_mle_data->lcp_policy_hash);
-    printk(TBOOT_DETA"\t lcp_policy_control: 0x%08x\n",
-           sinit_mle_data->lcp_policy_control);
-    printk(TBOOT_DETA"\t rlp_wakeup_addr: 0x%x\n", sinit_mle_data->rlp_wakeup_addr);
-    printk(TBOOT_DETA"\t num_mdrs: %u\n", sinit_mle_data->num_mdrs);
-    printk(TBOOT_DETA"\t mdrs_off: 0x%x\n", sinit_mle_data->mdrs_off);
-    printk(TBOOT_DETA"\t num_vtd_dmars: %u\n", sinit_mle_data->num_vtd_dmars);
-    printk(TBOOT_DETA"\t vtd_dmars_off: 0x%x\n", sinit_mle_data->vtd_dmars_off);
-    print_sinit_mdrs((sinit_mdr_t *)
-                     (((void *)sinit_mle_data - sizeof(uint64_t)) +
-                      sinit_mle_data->mdrs_off), sinit_mle_data->num_mdrs);
-    if ( sinit_mle_data->version >= 8 )
-        printk(TBOOT_DETA"\t proc_scrtm_status: 0x%08x\n",
-               sinit_mle_data->proc_scrtm_status);
-    if ( sinit_mle_data->version >= 9 )
-        print_ext_data_elts(sinit_mle_data->ext_data_elts);
-}
-
-static bool verify_sinit_mle_data(const txt_heap_t *txt_heap)
-{
-    uint64_t size, heap_size;
-    sinit_mle_data_t *sinit_mle_data;
-
-    /* check size */
-    heap_size = read_priv_config_reg(TXTCR_HEAP_SIZE);
-    size = get_sinit_mle_data_size(txt_heap);
-    if ( size == 0 ) {
-        printk(TBOOT_ERR"SINIT to MLE data size is 0\n");
-        return false;
-    }
-    if ( size > heap_size ) {
-        printk(TBOOT_ERR"SINIT to MLE data size is larger than heap size\n"
-               "(%Lx, heap size=%Lx)\n", size, heap_size);
-        return false;
-    }
-
-    sinit_mle_data = get_sinit_mle_data_start(txt_heap);
-
-    /* check version */
-    if ( sinit_mle_data->version < 6 ) {
-        printk(TBOOT_ERR"unsupported SINIT to MLE data version (%u)\n",
-               sinit_mle_data->version);
-        return false;
-    }
-    else if ( sinit_mle_data->version > 9 ) {
-        printk(TBOOT_WARN"unsupported SINIT to MLE data version (%u)\n",
-               sinit_mle_data->version);
-    }
-
-    /* this data is generated by SINIT and so is implicitly trustworthy, */
-    /* so we don't need to validate it's fields */
-
-    print_sinit_mle_data(sinit_mle_data);
-
-    return true;
-}
-
-bool verify_txt_heap(const txt_heap_t *txt_heap, bool bios_data_only)
-{
-    /* verify BIOS to OS data */
-    if ( !verify_bios_data(txt_heap) )
-        return false;
-
-    if ( bios_data_only )
-        return true;
-
-    /* check that total size is within the heap */
-    uint64_t size1 = get_bios_data_size(txt_heap);
-    uint64_t size2 = get_os_mle_data_size(txt_heap);
-    uint64_t size3 = get_os_sinit_data_size(txt_heap);
-    uint64_t size4 = get_sinit_mle_data_size(txt_heap);
-
-    /* overflow? */
-    if ( plus_overflow_u64(size1, size2) ) {
-        printk(TBOOT_ERR"TXT heap data size overflows\n");
-        return false;
-    }
-    if ( plus_overflow_u64(size3, size4) ) {
-        printk(TBOOT_ERR"TXT heap data size overflows\n");
-        return false;
-    }
-    if ( plus_overflow_u64(size1 + size2, size3 + size4) ) {
-        printk(TBOOT_ERR"TXT heap data size overflows\n");
-        return false;
-    }
-
-    if ( (size1 + size2 + size3 + size4) >
-         read_priv_config_reg(TXTCR_HEAP_SIZE) ) {
-        printk(TBOOT_ERR"TXT heap data sizes (%Lx, %Lx, %Lx, %Lx) are larger than\n"
-               "heap total size (%Lx)\n", size1, size2, size3, size4,
-               read_priv_config_reg(TXTCR_HEAP_SIZE));
-        return false;
-    }
-
-    /* verify OS to MLE data */
-    if ( !verify_os_mle_data(txt_heap) )
-        return false;
-
-    /* verify OS to SINIT data */
-    if ( !verify_os_sinit_data(txt_heap) )
-        return false;
-
-    /* verify SINIT to MLE data */
-    if ( !verify_sinit_mle_data(txt_heap) )
-        return false;
-
-    return true;
 }
 
 #endif

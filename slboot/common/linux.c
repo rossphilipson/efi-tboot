@@ -43,7 +43,7 @@
 #include <loader.h>
 #include <page.h>
 #include <e820.h>
-#include <tboot.h>
+#include <slboot.h>
 #include <linux_defns.h>
 #include <cmdline.h>
 #include <misc.h>
@@ -76,7 +76,7 @@ printk_long(const char *what)
 /* expand linux kernel with kernel image and initrd image */
 bool expand_linux_image(const void *linux_image, size_t linux_size,
                         const void *initrd_image, size_t initrd_size,
-                        void **entry_point, bool is_measured_launch)
+                        void **entry_point)
 {
     linux_kernel_header_t *hdr;
     uint32_t real_mode_base, protected_mode_base;
@@ -219,7 +219,7 @@ bool expand_linux_image(const void *linux_image, size_t linux_size,
                (unsigned long)initrd_base,
                (unsigned long)(initrd_base + initrd_size));
 
-    } 
+    }
     else
         initrd_base = (uint32_t)initrd_image;
     hdr->ramdisk_image = initrd_base;
@@ -228,7 +228,7 @@ bool expand_linux_image(const void *linux_image, size_t linux_size,
     /* calc location of real mode part */
     real_mode_base = LEGACY_REAL_START;
     if ( have_loader_memlimits(g_ldr_ctx))
-        real_mode_base = 
+        real_mode_base =
             ((get_loader_mem_lower(g_ldr_ctx)) << 10) - REAL_MODE_SIZE;
     if ( real_mode_base < TBOOT_KERNEL_CMDLINE_ADDR +
          TBOOT_KERNEL_CMDLINE_SIZE )
@@ -345,7 +345,7 @@ bool expand_linux_image(const void *linux_image, size_t linux_size,
     /* need to handle a few EFI things here if such is our parentage */
     if (is_loader_launch_efi(g_ldr_ctx)){
         struct efi_info *efi = (struct efi_info *)(boot_params->efi_info);
-        struct screen_info_t *scr = 
+        struct screen_info_t *scr =
             (struct screen_info_t *)(boot_params->screen_info);
         uint32_t address = 0;
         uint64_t long_address = 0UL;
@@ -399,7 +399,7 @@ bool expand_linux_image(const void *linux_image, size_t linux_size,
         /* if we're here, GRUB2 probably threw a framebuffer tag at us */
         load_framebuffer_info(g_ldr_ctx, (void *)scr);
     }
-    
+
     /* detect e820 table */
     if (have_loader_memmap(g_ldr_ctx)) {
         int i;

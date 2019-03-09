@@ -46,12 +46,11 @@
 #include <processor.h>
 #include <printk.h>
 #include <atomic.h>
-#include <mutex.h>
 #include <tpm.h>
 #include <uuid.h>
 #include <loader.h>
 #include <e820.h>
-#include <tboot.h>
+#include <slboot.h>
 #include <mle.h>
 #include <hash.h>
 #include <cmdline.h>
@@ -77,10 +76,7 @@ extern char _mle_end[];           /* end of text section */
 
 extern long s3_flag;
 
-extern struct mutex ap_lock;
-
 /* MLE/kernel shared data page (in boot.S) */
-extern void apply_policy(tb_error_t error);
 extern void print_event(const tpm12_pcr_event_t *evt);
 extern void print_event_2(void *evt, uint16_t alg);
 extern uint32_t print_event_2_1(void *evt);
@@ -521,7 +517,7 @@ static txt_heap_t *init_txt_heap(void *ptab_base, acm_hdr_t *sinit, loader_ctx *
     /*
      * BIOS data already setup by BIOS
      */
-    if ( !verify_txt_heap(txt_heap, true) )
+    if ( !verify_bios_data(txt_heap) )
         return NULL;
 
     /*
@@ -531,9 +527,6 @@ static txt_heap_t *init_txt_heap(void *ptab_base, acm_hdr_t *sinit, loader_ctx *
     size = (uint64_t *)((uint32_t)os_mle_data - sizeof(uint64_t));
     *size = sizeof(*os_mle_data) + sizeof(uint64_t);
     tb_memset(os_mle_data, 0, sizeof(*os_mle_data));
-    os_mle_data->version = 3;
-    os_mle_data->lctx_addr = lctx->addr;
-    os_mle_data->saved_misc_enable_msr = rdmsr(MSR_IA32_MISC_ENABLE);
 
     /*
      * OS/loader to SINIT data
@@ -699,9 +692,9 @@ tb_error_t txt_launch_environment(loader_ctx *lctx)
     if ( txt_heap == NULL )
         return TB_ERR_TXT_NOT_SUPPORTED;
 
-    /* save MTRRs before we alter them for SINIT launch */
+    /* TODO set the zero page addr here or possibly later in the launch */
     os_mle_data = get_os_mle_data_start(txt_heap);
-    save_mtrrs(&(os_mle_data->saved_mtrr_state));
+    os_mle_data->zero_page_addr = 0;
 
     /* set MTRRs properly for AC module (SINIT) */
     if ( !set_mtrrs_for_acmod(g_sinit) )
@@ -712,7 +705,7 @@ tb_error_t txt_launch_environment(loader_ctx *lctx)
        printk(TBOOT_INFO"Relinquish CRB localility 0 before executing GETSEC[SENTER]...\n");
 	if (!tpm_relinquish_locality_crb(0)){
 		printk(TBOOT_INFO"Relinquish CRB locality 0 failed...\n");
-		apply_policy(TB_ERR_TPM_NOT_READY) ;
+		error_action(TB_ERR_TPM_NOT_READY) ;
 	}
    }
 
@@ -755,10 +748,6 @@ tb_error_t txt_launch_racm(loader_ctx *lctx)
     /* do some checks on it */
     if ( !verify_racm(racm) )
         return TB_ERR_ACMOD_VERIFY_FAILED;
-
-    /* save MTRRs before we alter them for RACM launch */
-    /*  - not needed by far since always reboot after RACM launch */
-    //save_mtrrs(...);
 
     /* set MTRRs properly for AC module (RACM) */
     if ( !set_mtrrs_for_acmod(racm) )

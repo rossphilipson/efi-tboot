@@ -33,7 +33,6 @@
 #include <types.h>
 #include <stdbool.h>
 #include <misc.h>
-#include <mutex.h>
 #include <io.h>
 #include <pci_cfgreg.h>
 #include <com.h>
@@ -49,7 +48,6 @@ serial_port_t g_com_port = {115200, 0, 0x3, COM1_ADDR}; /* com1,115200,8n1 */
 
 extern bool g_psbdf_enabled;
 extern bool g_pbbdf_enabled;
-extern struct mutex pcicfg_mtx;
 
 static void comc_putchar(int c)
 {
@@ -101,8 +99,6 @@ static void comc_pci_setup(void)
                         PCIR_COMMAND,
                         0x1,
                         2);
-
-        mtx_init(&pcicfg_mtx);
     }
 }
 

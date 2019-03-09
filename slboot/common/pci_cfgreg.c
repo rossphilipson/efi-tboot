@@ -35,7 +35,6 @@
  */
 
 #include <types.h>
-#include <mutex.h>
 #include <io.h>
 #include <pci_cfgreg.h>
 
@@ -46,7 +45,6 @@ enum {
 	CFGMECH_PCIE,
 };
 
-struct mutex pcicfg_mtx;
 static const int cfgmech = CFGMECH_1;
 
 /* 
@@ -113,7 +111,6 @@ int pcireg_cfgread(int bus, int slot, int func, int reg, int bytes)
 	int data = -1;
 	int port;
 
-	mtx_enter(&pcicfg_mtx);
 	port = pci_cfgenable(bus, slot, func, reg, bytes);
 	if (port != 0) {
 		switch (bytes) {
@@ -131,7 +128,7 @@ int pcireg_cfgread(int bus, int slot, int func, int reg, int bytes)
 		}
 		pci_cfgdisable();
 	}
-	mtx_leave(&pcicfg_mtx);
+
 	return (data);
 }
 
@@ -139,7 +136,6 @@ void pcireg_cfgwrite(int bus, int slot, int func, int reg, int data, int bytes)
 {
 	int port;
 
-	mtx_enter(&pcicfg_mtx);
 	port = pci_cfgenable(bus, slot, func, reg, bytes);
 	if (port != 0) {
 		switch (bytes) {
@@ -157,7 +153,6 @@ void pcireg_cfgwrite(int bus, int slot, int func, int reg, int data, int bytes)
 		}
 		pci_cfgdisable();
 	}
-	mtx_leave(&pcicfg_mtx);
 }
 
 /*

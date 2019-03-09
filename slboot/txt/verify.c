@@ -47,7 +47,7 @@
 #include <loader.h>
 #include <tb_error.h>
 #include <e820.h>
-#include <tboot.h>
+#include <slboot.h>
 #include <acpi.h>
 #include <mle.h>
 #include <hash.h>
@@ -112,7 +112,7 @@ static bool read_processor_info(void)
     if ( (g_cpuid_ext_feat_info & CPUID_X86_FEATURE_VMX) ||
          (g_cpuid_ext_feat_info & CPUID_X86_FEATURE_SMX) ) {
         g_feat_ctrl_msr = rdmsr(MSR_IA32_FEATURE_CONTROL);
-        printk(TBOOT_DETA"IA32_FEATURE_CONTROL_MSR: %08lx\n", g_feat_ctrl_msr);        
+        printk(TBOOT_DETA"IA32_FEATURE_CONTROL_MSR: %08lx\n", g_feat_ctrl_msr);
     }
 
     return true;
@@ -236,37 +236,6 @@ tb_error_t supports_txt(void)
     return TB_ERR_TXT_NOT_SUPPORTED;
 }
 
-static bool reserve_vtd_delta_mem(uint64_t min_lo_ram, uint64_t max_lo_ram,
-                                  uint64_t min_hi_ram, uint64_t max_hi_ram)
-{
-    uint64_t base, length;
-    (void)min_lo_ram; (void)min_hi_ram;/* portably suppress compiler warning */
-
-    txt_heap_t* txt_heap = get_txt_heap();
-    os_sinit_data_t *os_sinit_data = get_os_sinit_data_start(txt_heap);
-
-    if ( max_lo_ram != (os_sinit_data->vtd_pmr_lo_base +
-                        os_sinit_data->vtd_pmr_lo_size) ) {
-        base = os_sinit_data->vtd_pmr_lo_base + os_sinit_data->vtd_pmr_lo_size;
-        length = max_lo_ram - base;
-        printk(TBOOT_INFO"reserving 0x%Lx - 0x%Lx, which was truncated for VT-d\n",
-               base, base + length);
-        if ( !e820_reserve_ram(base, length) )
-            return false;
-    }
-    if ( max_hi_ram != (os_sinit_data->vtd_pmr_hi_base +
-                        os_sinit_data->vtd_pmr_hi_size) ) {
-        base = os_sinit_data->vtd_pmr_hi_base + os_sinit_data->vtd_pmr_hi_size;
-        length = max_hi_ram - base;
-        printk(TBOOT_INFO"reserving 0x%Lx - 0x%Lx, which was truncated for VT-d\n",
-               base, base + length);
-        if ( !e820_reserve_ram(base, length) )
-            return false;
-    }
-
-    return true;
-}
-
 void set_vtd_pmrs(os_sinit_data_t *os_sinit_data,
                   uint64_t min_lo_ram, uint64_t max_lo_ram,
                   uint64_t min_hi_ram, uint64_t max_hi_ram)
@@ -322,179 +291,6 @@ tb_error_t txt_verify_platform(void)
         return TB_ERR_TXT_NOT_SUPPORTED;
 
     return TB_ERR_NONE;
-}
-
-bool verify_e820_map(sinit_mdr_t* mdrs_base, uint32_t num_mdrs)
-{
-    sinit_mdr_t* mdr_entry;
-    sinit_mdr_t tmp_entry;
-    uint64_t base, length;
-    uint32_t i, j, pos;
-
-    if ( (mdrs_base == NULL) || (num_mdrs == 0) )
-        return false;
-
-    /* sort mdrs */
-    for( i = 0; i < num_mdrs; i++ ) {
-        tb_memcpy(&tmp_entry, &mdrs_base[i], sizeof(sinit_mdr_t));
-        pos = i;
-        for ( j = i + 1; j < num_mdrs; j++ ) {
-            if ( ( tmp_entry.base > mdrs_base[j].base )
-                 || (( tmp_entry.base == mdrs_base[j].base ) &&
-                     ( tmp_entry.length > mdrs_base[j].length )) ) {
-                tb_memcpy(&tmp_entry, &mdrs_base[j], sizeof(sinit_mdr_t));
-                pos = j;
-            }
-        }
-        if ( pos > i ) {
-            tb_memcpy(&mdrs_base[pos], &mdrs_base[i], sizeof(sinit_mdr_t));
-            tb_memcpy(&mdrs_base[i], &tmp_entry, sizeof(sinit_mdr_t));
-        }
-    }
-
-    /* verify e820 map against mdrs */
-    /* find all ranges *not* in MDRs:
-       if any of it is in e820 as RAM then set that to RESERVED. */
-    i = 0;
-    base = 0;
-    while ( i < num_mdrs ) {
-        mdr_entry = &mdrs_base[i];
-        i++;
-        if ( mdr_entry->mem_type > MDR_MEMTYPE_GOOD )
-            continue;
-        length = mdr_entry->base - base;
-        if ( (length > 0) && (!e820_reserve_ram(base, length)) )
-            return false;
-        base = mdr_entry->base + mdr_entry->length;
-    }
-
-    /* deal with the last gap */
-    length = (uint64_t)-1 - base;
-    return e820_reserve_ram(base, length);
-}
-
-static void print_mseg_hdr(mseg_hdr_t *mseg_hdr)
-{
-    printk(TBOOT_DETA"MSEG header dump for 0x%x:\n", (uint32_t)mseg_hdr);
-    printk(TBOOT_DETA"\t revision_id = 0x%x\n", mseg_hdr->revision_id);
-    printk(TBOOT_DETA"\t smm_monitor_features = 0x%x\n", mseg_hdr->smm_mon_feat);
-    printk(TBOOT_DETA"\t gdtr_limit = 0x%x\n", mseg_hdr->gdtr_limit);
-    printk(TBOOT_DETA"\t gdtr_base_offset = 0x%x\n", mseg_hdr->gdtr_base_offset);
-    printk(TBOOT_DETA"\t cs_sel = 0x%x\n", mseg_hdr->cs_sel);
-    printk(TBOOT_DETA"\t eip_offset = 0x%x\n", mseg_hdr->eip_offset);
-    printk(TBOOT_DETA"\t esp_offset = 0x%x\n", mseg_hdr->esp_offset);
-    printk(TBOOT_DETA"\t cr3_offset = 0x%x\n", mseg_hdr->cr3_offset);
-}
-
-static bool are_mseg_hdrs_equal(void *mseg_base1, void *mseg_base2)
-{
-    mseg_hdr_t *mseg_hdr1, *mseg_hdr2;
-
-    mseg_hdr1 = (mseg_hdr_t *)mseg_base1;
-    mseg_hdr2 = (mseg_hdr_t *)mseg_base2;
-
-    print_mseg_hdr(mseg_hdr1);
-    print_mseg_hdr(mseg_hdr2);
-
-    if ( mseg_hdr1->revision_id != mseg_hdr2->revision_id ) {
-        printk(TBOOT_ERR"revision id is not consistent.\n");
-        return false;
-    }
-
-    if ( (mseg_hdr1->smm_mon_feat & 0xfffffffe)
-        || (mseg_hdr2->smm_mon_feat & 0xfffffffe) ) {
-        printk(TBOOT_ERR"bits 1:31 of SMM-monitor features field should be zero.\n");
-        return false;
-    }
-
-    if ( mseg_hdr1->smm_mon_feat != mseg_hdr2->smm_mon_feat ) {
-        printk(TBOOT_ERR"SMM-monitor features are not consistent.\n");
-        return false;
-    }
-
-    if ( (mseg_hdr1->gdtr_limit != mseg_hdr2->gdtr_limit)
-        || (mseg_hdr1->gdtr_base_offset != mseg_hdr2->gdtr_base_offset)
-        || (mseg_hdr1->cs_sel != mseg_hdr2->cs_sel)
-        || (mseg_hdr1->eip_offset != mseg_hdr2->eip_offset)
-        || (mseg_hdr1->esp_offset != mseg_hdr2->esp_offset)
-        || (mseg_hdr1->cr3_offset != mseg_hdr2->cr3_offset) ) {
-        printk(TBOOT_ERR"states for SMM activation are not consistent.\n");
-        return false;
-    }
-
-    return true;
-}
-
-static bool verify_mseg(uint64_t smm_mon_ctl)
-{
-    txt_heap_t *txt_heap = get_txt_heap();
-    sinit_mle_data_t *sinit_mle_data = get_sinit_mle_data_start(txt_heap);
-    void *mseg_base, *txt_mseg_base;
-
-    /* opt-out */
-    if ( !(smm_mon_ctl & MSR_IA32_SMM_MONITOR_CTL_VALID) ) {
-        printk(TBOOT_INFO"\topt-out\n");
-        return true;
-    }
-
-    if ( !sinit_mle_data->mseg_valid ) {
-        printk(TBOOT_INFO"\topt-out\n");
-        return true;
-    }
-
-    /* opt-in */
-    printk(TBOOT_INFO"\topt-in ");
-    mseg_base = (void *)(unsigned long)
-        MSR_IA32_SMM_MONITOR_CTL_MSEG_BASE(smm_mon_ctl);
-    txt_mseg_base = (void *)(uint32_t)read_pub_config_reg(TXTCR_MSEG_BASE);
-
-    if ( are_mseg_hdrs_equal(mseg_base, txt_mseg_base) ) {
-        printk(TBOOT_INFO"and same MSEG header\n");
-        return true;
-    }
-
-    printk(TBOOT_ERR"but different MSEG headers\n");
-    return false;
-}
-
-bool verify_stm(unsigned int cpuid)
-{
-    static uint64_t ilp_smm_mon_ctl;
-    uint64_t smm_mon_ctl, apicbase;
-
-    smm_mon_ctl = rdmsr(MSR_IA32_SMM_MONITOR_CTL);
-    apicbase = rdmsr(MSR_APICBASE);
-    if ( apicbase & APICBASE_BSP ) {
-        ilp_smm_mon_ctl = smm_mon_ctl;
-        printk(TBOOT_DETA"MSR for SMM monitor control on BSP is 0x%Lx.\n",
-               ilp_smm_mon_ctl);
-
-        /* verify ILP's MSEG == TXT.MSEG.BASE */
-        printk(TBOOT_INFO"verifying ILP is opt-out "
-               "or has the same MSEG header with TXT.MSEG.BASE\n\t");
-        if ( !verify_mseg(ilp_smm_mon_ctl) ) {
-            printk(TBOOT_ERR" : failed.\n");
-            return false;
-        }
-        printk(TBOOT_INFO" : succeeded.\n");
-    }
-    else {
-        printk(TBOOT_DETA"MSR for SMM monitor control on cpu %u is 0x%Lx\n",
-               cpuid, smm_mon_ctl);
-
-        /* verify ILP's SMM MSR == RLP's SMM MSR */
-        printk(TBOOT_INFO"verifying ILP's MSR_IA32_SMM_MONITOR_CTL with cpu %u\n\t",
-               cpuid);
-        if ( smm_mon_ctl != ilp_smm_mon_ctl ) {
-            printk(TBOOT_ERR" : failed.\n");
-            return false;
-        }
-        printk(TBOOT_INFO" : succeeded.\n");
-
-        /* since the RLP's MSR is the same. No need to verify MSEG header */
-    }
-
-    return true;
 }
 
 /*

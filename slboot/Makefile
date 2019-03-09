@@ -4,32 +4,30 @@
 # -*- mode: Makefile; -*-
 
 #
-# tboot makefile
+# slboot makefile
 #
 
 include $(CURDIR)/Config.mk
 
-TARGET := $(CURDIR)/tboot
+TARGET := $(CURDIR)/slboot
 
 # boot.o must be first
 obj-y := common/boot.o
 obj-y += common/acpi.o common/cmdline.o common/com.o common/e820.o
 obj-y += common/elf.o common/hash.o common/index.o
 obj-y += common/linux.o common/loader.o common/memcmp.o common/memcpy.o
-obj-y += common/misc.o common/mutex.o common/paging.o common/pci_cfgreg.o
-obj-y += common/policy.o common/printk.o common/rijndael.o common/sha1.o
+obj-y += common/misc.o common/pci_cfgreg.o
+obj-y += common/printk.o common/rijndael.o common/sha1.o
 obj-y += common/strcmp.o common/strlen.o common/strncmp.o common/strncpy.o
-obj-y += common/strtoul.o common/tb_error.o common/tboot.o common/tpm.o
+obj-y += common/strtoul.o common/tb_error.o common/slboot.o common/tpm.o
 obj-y += common/vga.o common/vmac.o common/vsprintf.o
-obj-y += txt/acmod.o txt/errors.o txt/heap.o txt/mtrrs.o txt/txt.o
-obj-y += txt/verify.o
-obj-y += common/tpm_12.o common/tpm_20.o
-obj-y += common/sha256.o
+obj-y += txt/acmod.o txt/errors.o txt/heap.o txt/mtrrs.o txt/txt.o txt/verify.o
+obj-y += common/tpm_12.o common/tpm_20.o common/sha256.o
 
 OBJS := $(obj-y)
 
 
-TARGET_LDS := $(CURDIR)/common/tboot.lds
+TARGET_LDS := $(CURDIR)/common/slboot.lds
 
 $(TARGET).gz : $(TARGET)
 	gzip -n -f -9 < $< > $@
@@ -47,7 +45,7 @@ $(TARGET) : $(OBJS) $(TARGET_LDS)
 
 #.PHONY: FORCE
 #FORCE :
-	@: # do nothing
+#	@: # do nothing
 #
 # universal rules
 #
@@ -89,13 +87,13 @@ define set_exuberant_flags
 endef
 
 .PHONY: TAGS
-TAGS : 
+TAGS :
 	rm -f TAGS; \
 	$(call set_exuberant_flags,etags); \
 	$(all_sources) | xargs etags $$exuberant_flags -a
 
 .PHONY: tags
-tags : 
+tags :
 	rm -f tags; \
 	$(call set_exuberant_flags,ctags); \
 	$(all_sources) | xargs ctags $$exuberant_flags -a

@@ -264,14 +264,8 @@ typedef struct __packed {
 #define MAX_EVENT_LOG_SIZE       5*4*1024   /* 4k*5 */
 
 typedef struct __packed {
-    uint32_t          version;           /* currently 3 */
-    mtrr_state_t      saved_mtrr_state;  /* saved prior to changes for SINIT */
-    void 			 *lctx_addr;         /* needs to be restored to ebx */
-    uint32_t          saved_misc_enable_msr;  /* saved prior to SENTER */
-                                         /* PO policy data */
-    uint8_t           lcp_po_data[MAX_LCP_PO_DATA_SIZE];
-                                         /* buffer for tpm event log */
-    uint8_t           event_log_buffer[MAX_EVENT_LOG_SIZE];
+    uint32_t zero_page_addr;
+    uint8_t  event_log_buffer[MAX_EVENT_LOG_SIZE];
 } os_mle_data_t;
 
 #define MIN_OS_SINIT_DATA_VER    4
@@ -425,10 +419,8 @@ static inline sinit_mle_data_t *get_sinit_mle_data_start(const txt_heap_t *heap)
 }
 
 extern uint64_t calc_os_sinit_data_size(uint32_t version);
-extern bool verify_txt_heap(const txt_heap_t *txt_heap, bool bios_data_only);
 extern bool verify_bios_data(const txt_heap_t *txt_heap);
 extern void print_os_sinit_data(const os_sinit_data_t *os_sinit_data);
-extern void print_os_sinit_data_vtdpmr(const os_sinit_data_t *os_sinit_data);
 
 #endif      /* __TXT_HEAP_H__ */
 
